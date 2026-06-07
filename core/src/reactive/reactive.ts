@@ -44,7 +44,7 @@ export function reactive<TState extends Reactiveable>(state: TState): ReactiveTa
                 const result = Reflect.set(target, prop, newValue, receiver)
                 if (prop === ReactiveTag) return result
 
-                context.enqueuePropChange(receiver, prop, newValue)
+                context.triggerProp(receiver, prop, newValue)
                 return result
             },
         },
