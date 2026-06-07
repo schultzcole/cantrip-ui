@@ -7,7 +7,7 @@ export function counter(root: HtmlBuilder, initialValue: number) {
         div
             .style({ fontSize: "1.4rem" })
             .tag("button", (button) => {
-                button.text("-").on("mousedown", (_) => state.count--)
+                button.text("−").on("mousedown", (_) => state.count--)
             })
             .tag("span", (span) => {
                 span.reactive(state, ({ count }) => span.html`Count: <strong>${count}</strong>`)
