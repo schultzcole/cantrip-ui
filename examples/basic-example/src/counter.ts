@@ -1,23 +1,19 @@
-import { reactive, ReactiveHtmlBuilder } from "@scope/core"
+import { HtmlBuilder, reactive } from "../../../core/mod.ts"
 
-export function counter(root: ReactiveHtmlBuilder, initialValue: number) {
-    const { state, ctx } = reactive({ count: initialValue })
+export function counter(root: HtmlBuilder, initialValue: number) {
+    const state = reactive({ count: initialValue })
 
-    root.tag("div", (div) => {
-        div.attrs({ className: "flex flex-row flex-gap flex-even" })
+    root.tag("div", { className: "flex flex-row flex-gap flex-even" }, (div) => {
+        div
             .style({ fontSize: "1.4rem" })
             .tag("button", (button) => {
-                button
-                    .text("-")
-                    .on("mousedown", (_) => state.count--)
+                button.text("-").on("mousedown", (_) => state.count--)
             })
             .tag("span", (span) => {
-                span.reactive(ctx, (template) => template.html`Count: <strong>${state.count}</strong>`)
+                span.reactive(state, ({ count }) => span.html`Count: <strong>${count}</strong>`)
             })
             .tag("button", (button) => {
-                button
-                    .text("+")
-                    .on("mousedown", (_) => state.count++)
+                button.text("+").on("mousedown", (_) => state.count++)
             })
     })
 }

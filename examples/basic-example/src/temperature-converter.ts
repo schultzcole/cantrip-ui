@@ -1,67 +1,49 @@
-import { reactive, ReactiveHtmlBuilder } from "@scope/core"
+import { effect, HtmlBuilder, reactive } from "../../../core/mod.ts"
 
-export function temperatureConverter(root: ReactiveHtmlBuilder, initialCelcius: number | null = null) {
-    const { state } = reactive({
-        celcius: initialCelcius,
-        fahrenheit: cToF(initialCelcius),
+type State = { celsius: number | null; fahrenheit: number | null }
+export function temperatureConverter(root: HtmlBuilder, initialCelsius: number | null = null) {
+    const state: State = reactive({
+        celsius: initialCelsius,
+        fahrenheit: null,
     })
 
-    function updateCelcius(event: Event) {
-        const input = event.currentTarget as HTMLInputElement
-        const value = parseFloat(input.value)
-        if (isNaN(value)) {
-            console.warn("invalid number!")
-            state.fahrenheit = null
-        } else {
-            state.celcius = value
-            state.fahrenheit = cToF(value)
-        }
-    }
+    effect(state, (state) => state.fahrenheit = cToF(state.celsius))
+    effect(state, (state) => state.celsius = fToC(state.fahrenheit))
 
-    function updateFahrenheit(event: Event) {
-        const input = event.currentTarget as HTMLInputElement
-        const value = parseFloat(input.value)
-        if (isNaN(value)) {
-            console.warn("invalid number!")
-            state.celcius = null
-        } else {
-            state.fahrenheit = value
-            state.celcius = fToC(value)
-        }
-    }
-
-    root
-        .tag("div", (div) => {
-            div.attrs({ className: "flex flex-col flex-gap" })
-                .tag("div", (div) => {
-                    div
-                        .tag("label", (label) => label.attrs({ htmlFor: "celcius-field" }).text("Celcius: "))
-                        .tag("input", (input) => {
-                            input.attrs({ id: "celcius-field", type: "number" })
-                                .attr("value", () => state.celcius)
-                                .on("input", updateCelcius)
-                        })
-                })
-                .tag("div", (div) => {
-                    div
-                        .tag("label", (label) => label.attrs({ htmlFor: "fahrenheit-field" }).text("Fahrenheit: "))
-                        .tag("input", (input) => {
-                            input.attrs({ id: "fahrenheit-field", type: "number" })
-                                .attr("value", () => state.fahrenheit)
-                                .on("input", updateFahrenheit)
-                        })
-                })
-        })
+    root.tag("div", { className: "flex flex-col flex-gap" }, (div) => {
+        div
+            .component(temperatureField, state, "celsius")
+            .component(temperatureField, state, "fahrenheit")
+    })
 }
 
-function cToF(c: number | null, precision: number = 0.001): number | null {
-    if (c === null) return null
-    precision = 1 / precision
-    return Math.round((c * (9 / 5) + 32) * precision) / precision
+function temperatureField(root: HtmlBuilder, state: State, prop: "celsius" | "fahrenheit"): void {
+    const fieldId = `${prop}-field`
+    root.tag("div", (div) => {
+        div
+            .tag("label", { htmlFor: fieldId }, (label) => label.text(`${prop}: `))
+            .tag("input", { id: fieldId, type: "number", step: "0.1" }, (input) => {
+                input
+                    .reactive(state, (state) => input.attr("value", state[prop]))
+                    .on("input", (evt) => state[prop] = parseFloat(evt.currentTarget.value))
+            })
+    })
 }
 
-function fToC(f: number | null, precision: number = 0.001): number | null {
-    if (f === null) return null
+function cToF(c: number | null): number | null {
+    return discardNonNumbers(c, (c) => roundTo(c * (9 / 5) + 32))
+}
+
+function fToC(f: number | null): number | null {
+    return discardNonNumbers(f, (f) => roundTo((f - 32) * (5 / 9)))
+}
+
+function discardNonNumbers(num: number | null, func: (num: number) => number): number | null {
+    if (num === null || Number.isNaN(num)) return null
+    return func(num)
+}
+
+function roundTo(num: number, precision: number = 0.0001): number {
     precision = 1 / precision
-    return Math.round(((f - 32) * (5 / 9)) * precision) / precision
+    return Math.round(num * precision) / precision
 }
