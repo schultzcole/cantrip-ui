@@ -10,10 +10,15 @@ export type HtmlElement<TTag extends HtmlTag> = HTMLElementTagNameMap[TTag]
 export type HtmlEventType = keyof GlobalEventHandlersEventMap
 
 /** Returns the type of a listener function for the given HTML event */
-export type HtmlEventTypeListener<T extends HtmlEventType> = HtmlEventListener<GlobalEventHandlersEventMap[T]>
+export type HtmlEventTypeListener<T extends HtmlEventType, TElement extends EventTarget> = HtmlEventListener<
+    GlobalEventHandlersEventMap[T],
+    TElement
+>
 
 /** Returns the type of a listener for a generic event */
-export type HtmlEventListener<TEvent extends Event> = (evt: TEvent) => void
+export type HtmlEventListener<TEvent extends Event, TElement extends EventTarget> = (
+    evt: TEvent & { currentTarget: TElement },
+) => void
 
 /** Returns a type of the valid HTML attributes for the given tag */
 export type HtmlElementAttrs<TTag extends HtmlTag = HtmlTag> = OmitReadonly<OmitFunctions<HtmlElement<TTag>>>

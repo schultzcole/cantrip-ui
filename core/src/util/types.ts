@@ -14,7 +14,7 @@ export type NonFunctionKeysOf<T> = Exclude<
 export type OmitFunctions<T> = Pick<T, NonFunctionKeysOf<T>>
 
 /** Returns T where readonly propertys are omitted */
-export type OmitReadonly<T> = Pick<T, WritableKeysOf<T>>
+export type OmitReadonly<T extends object> = Pick<T, WritableKeysOf<T>>
 
 /** A value that can be cooerced into an html attribute string */
 export type AnyData = string | number | bigint | boolean | undefined | null
