@@ -204,6 +204,7 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
     /**
      * Append a child element with the given tag to this element, then pass an `HtmlBuilder` for the newly appended element to the given function.
      * @param childTag the tag to append
+     * @param attrs attributes to add to the element
      * @param func a function to call with an `HtmlBuilder` for the appended element.
      */
     tag<TChild extends HtmlTag>(
@@ -212,6 +213,11 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
         func?: (child: HtmlBuilder<TChild>) => void,
     ): this
 
+    /**
+     * Append a child element with the given tag to this element, then pass an `HtmlBuilder` for the newly appended element to the given function.
+     * @param childTag the tag to append
+     * @param func a function to call with an `HtmlBuilder` for the appended element.
+     */
     tag<TChild extends HtmlTag>(
         childTag: TChild,
         func?: (child: HtmlBuilder<TChild>) => void,
