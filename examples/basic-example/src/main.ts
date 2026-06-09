@@ -26,29 +26,29 @@ new HtmlBuilder("template")
                 .component(temperatureConverter, 0)
         })
 
-        // column.tag("div", (panel) => {
-        //     panel.attrs({ className: "panel drop-shadow" })
-        //         .html(`<h2>Flight Booker</h2>`)
-        // })
-        //
-        // column.tag("div", (panel) => {
-        //     panel.attrs({ className: "panel drop-shadow" })
-        //         .html(`<h2>Timer</h2>`)
-        // })
-        //
-        // column.tag("div", (panel) => {
-        //     panel.attrs({ className: "panel drop-shadow" })
-        //         .html(`<h2>Address Book</h2>`)
-        // })
-        //
-        // column.tag("div", (panel) => {
-        //     panel.attrs({ className: "panel drop-shadow" })
-        //         .html(`<h2>Circle Drawer</h2>`)
-        // })
-        //
-        // column.tag("div", (panel) => {
-        //     panel.attrs({ className: "panel drop-shadow" })
-        //         .html(`<h2>Cells</h2>`)
-        // })
+        column.tag("div", (panel) => {
+            panel.attrs({ className: "panel drop-shadow" })
+                .html(`<h2>Flight Booker</h2>`)
+        })
+
+        column.tag("div", (panel) => {
+            panel.attrs({ className: "panel drop-shadow" })
+                .html(`<h2>Timer</h2>`)
+        })
+
+        column.tag("div", (panel) => {
+            panel.attrs({ className: "panel drop-shadow" })
+                .html(`<h2>Address Book</h2>`)
+        })
+
+        column.tag("div", (panel) => {
+            panel.attrs({ className: "panel drop-shadow" })
+                .html(`<h2>Circle Drawer</h2>`)
+        })
+
+        column.tag("div", (panel) => {
+            panel.attrs({ className: "panel drop-shadow" })
+                .html(`<h2>Cells</h2>`)
+        })
     })
     .mount(rootElement)

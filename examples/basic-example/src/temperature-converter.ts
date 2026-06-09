@@ -4,7 +4,7 @@ type State = { celsius: number | null; fahrenheit: number | null }
 export function temperatureConverter(root: HtmlBuilder, initialCelsius: number | null = null) {
     const state: State = reactive({
         celsius: initialCelsius,
-        fahrenheit: null,
+        fahrenheit: cToF(initialCelsius),
     })
 
     effect(state, (state) => state.fahrenheit = cToF(state.celsius))
@@ -25,7 +25,7 @@ function temperatureField(root: HtmlBuilder, state: State, prop: "celsius" | "fa
             .tag("input", { id: fieldId, type: "number", step: "0.1" }, (input) => {
                 input
                     .reactive(state, (state) => input.attr("value", state[prop]))
-                    .on("input", (evt) => state[prop] = parseFloat(evt.currentTarget.value))
+                    .on("change", (evt) => state[prop] = evt.currentTarget.valueAsNumber)
             })
     })
 }
