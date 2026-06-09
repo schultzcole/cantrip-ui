@@ -135,7 +135,7 @@ describe("reactive", () => {
             assertEquals(calls, { outer: 2, inner: 2 })
         })
 
-        it("when both funcs change state when outer func changes state first", () => {
+        it("both funcs get called once when both funcs change state when outer func changes state first", () => {
             const state = reactive({ value: 1 })
 
             effect(state, (state) => {
@@ -148,7 +148,7 @@ describe("reactive", () => {
             assertEquals(state.value, 3)
         })
 
-        it("when both funcs change state when outer func changes state last", () => {
+        it("both funcs get called once when when both funcs change state when outer func changes state last", () => {
             const state = reactive({ value: 1 })
 
             effect(state, (state) => {
@@ -174,8 +174,7 @@ describe("reactive", () => {
             state.fahrenheit = (state.celsius * (9 / 5)) + 32
         }
         it("do not create an infinite loop if they are not compounding and first effect is triggered", () => {
-            const unreactive = { celsius: 0, fahrenheit: 32 } satisfies Temps
-            const state = reactive(unreactive)
+            const state: Temps = reactive({ celsius: 0, fahrenheit: 32 })
             const calls: string[] = []
 
             // non-"compounding" effects. When either celsius or fahrenheit change, state settles into a steady state
@@ -184,20 +183,11 @@ describe("reactive", () => {
 
             state.celsius = -40
 
-            // effect calls computeCelsius | set celcius { celsius: 0, fahrenheit: 32 }; stack: []
-            //  - trigger: none
-            // effect calls computeFahrenheit | set fahrenheit { celsius: 0, fahrenheit: 32 }; stack: []
-            //  - trigger: none, fahrenheit didn't change
-            // set celsius { celsius: -40, fahrenheit: 32 }; stack: []
-            //  - trigger: computeFahrenheit | set fahrenheit { celsius: -40, fahrenheit: -40 }; stack: [celsius]
-            //    - trigger: computeCelsius | set celsius { celsius: -40, fahrenheit: -40 }; stack: [celsius, fahrenheit]
-            //      - trigger: none, celcius is already on the stack
-
             assertEquals(calls, ["computeCelsius", "computeFahrenheit", "computeFahrenheit", "computeCelsius"])
         })
 
         it("do not create an infinite loop if they are not compounding and second effect is triggered", () => {
-            const state = reactive({ celsius: 0, fahrenheit: 32 } satisfies Temps)
+            const state: Temps = reactive({ celsius: 0, fahrenheit: 32 })
             const calls: string[] = []
 
             // non-"compounding" effects. When either celsius or fahrenheit change, state settles into a steady state
@@ -206,74 +196,47 @@ describe("reactive", () => {
 
             state.fahrenheit = -40
 
-            // effect calls computeCelsius | set celcius { celsius: 0, fahrenheit: 32 }; stack: []
-            //  - trigger: none
-            // effect calls computeFahrenheit | set fahrenheit { celsius: 0, fahrenheit: 32 }; stack: []
-            //  - trigger: none, fahrenheit didn't change
-            // set fahrenheit { celsius: 0, fahrenheit: -40 }; stack: []
-            //  - trigger: computeCelsius | set celsius { celsius: -40, fahrenheit: -40 }; stack: [fahrenheit]
-            //    - trigger: computeFahrenheit | set fahrenheit { celsius: -40, fahrenheit: -40 }; stack: [fahrenheit, celsius]
-            //      - trigger: none, fahrenheit is already on the stack
-
             assertEquals(calls, ["computeCelsius", "computeFahrenheit", "computeCelsius", "computeFahrenheit"])
         })
 
         it("do not create an infinite loop if they are compounding", () => {
             type Values = { value1: number; value2: number }
-            const state = reactive({ value1: 0, value2: 0 })
-
-            const updateValue1 = (state: Values) => state.value1 = state.value2 + 1
-            const updateValue2 = (state: Values) => state.value2 = state.value1 + 1
+            const state: Values = reactive({ value1: 0, value2: 0 })
 
             // "compounding" effects. When either value1 or value2 change, the state continually updates forever
-            effect(state, updateValue1)
-            effect(state, updateValue2)
+            effect(state, (state: Values) => state.value1 = state.value2 + 1)
+            effect(state, (state: Values) => state.value2 = state.value1 + 1)
 
-            // - effect calls updateValue1 | set value1 { value1: 1, value2: 0 }; stack: []
-            //   - trigger: none
-            // - effect calls updateValue2 | set value2 { value1: 1, value2: 2 }; stack: []
-            //   - trigger: updateValue1 | set value1 { value1: 3, value2: 2 }; stack: [value2]
-            //     - trigger: updateValue2 | set value2 { value1: 3, value2: 4 }; stack: [value2, value1]
-            //       - trigger: none, value2 trigger is already on the stack
-
-            assertEquals(
-                { value1: state.value1, value2: state.value2 },
-                { value1: 3, value2: 4 },
-            )
+            assertEquals(state, { value1: 3, value2: 4 })
         })
     })
 
     describe("dependent nested effects", () => {
+        type State = { value1: number; value2: number; value3: number }
         it("triggering outer effect does not double trigger inner effect", () => {
-            const state = reactive({ value1: 1, value2: 1, value3: 1 })
+            const state: State = reactive({ value1: 0, value2: 0, value3: 0 })
 
-            let innerCalls = 0
             effect(state, (state) => {
-                state.value1 += state.value2
+                state.value1++
+                use(state.value2)
                 effect(state, (state) => {
-                    innerCalls++
-                    state.value1 += state.value3
+                    state.value1++
+                    use(state.value3)
                 })
             })
 
+            state.value2 = 1
             state.value2 = 2
-            state.value2 = 3
 
-            assertEquals(innerCalls, 3)
-            assertEquals(
-                { value1: state.value1, value2: state.value2, value3: state.value3 },
-                { value1: 10, value2: 3, value3: 1 },
-            )
+            assertEquals(state, { value1: 6, value2: 2, value3: 0 })
         })
 
         it("triggering inner effect does not double trigger outer effect", () => {
-            const state = reactive({ value1: 1, value2: 1, value3: 1 })
+            const state: State = reactive({ value1: 1, value2: 1, value3: 1 })
 
-            let innerCalls = 0
             effect(state, (state) => {
                 state.value1 += state.value2
                 effect(state, (state) => {
-                    innerCalls++
                     state.value1 += state.value3
                 })
             })
@@ -281,11 +244,7 @@ describe("reactive", () => {
             state.value3 = 2
             state.value3 = 3
 
-            assertEquals(innerCalls, 3)
-            assertEquals(
-                { value1: state.value1, value2: state.value2, value3: state.value3 },
-                { value1: 8, value2: 1, value3: 3 },
-            )
+            assertEquals(state, { value1: 8, value2: 1, value3: 3 })
         })
     })
 })
