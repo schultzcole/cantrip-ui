@@ -22,29 +22,38 @@ export function reactive<TState extends Reactiveable>(state: TState): ReactiveTa
     // SAFETY: `as` is safe here because we're immediately adding the reactive context afterward
     const reactiveState = state as ReactiveTagged<TState>
     const context = new ReactiveContext<TState>()
-    reactiveState[ReactiveTag] = context
+    Object.defineProperty(reactiveState, ReactiveTag, {
+        enumerable: false,
+        configurable: false,
+        writable: false,
+        value: context,
+    })
 
     return new Proxy<ReactiveTagged<TState>>(
         reactiveState,
         {
-            get<TKey extends keyof TState>(target: TState, prop: TKey, receiver: TState): TState[TKey] {
-                const value = Reflect.get(target, prop, receiver)
+            get<TKey extends keyof TState>(state: ReactiveTagged<TState>, prop: TKey, proxy: TState): TState[TKey] {
+                const value = Reflect.get(state, prop, proxy)
                 if (prop === ReactiveTag) return value
 
-                context.bindCurrentEffect(prop, value)
+                state[ReactiveTag].notifyPropGet(prop)
                 return value
             },
 
             set<TKey extends keyof TState>(
-                target: TState,
+                state: ReactiveTagged<TState>,
                 prop: TKey,
                 newValue: TState[TKey],
-                receiver: TState,
+                proxy: TState,
             ): boolean {
-                const result = Reflect.set(target, prop, newValue, receiver)
+                const oldValue = state[prop]
+
+                const result = Reflect.set(state, prop, newValue, proxy)
                 if (prop === ReactiveTag) return result
 
-                context.triggerProp(receiver, prop, newValue)
+                if (oldValue !== newValue) {
+                    state[ReactiveTag].notifyPropSet(proxy, prop)
+                }
                 return result
             },
         },
@@ -61,7 +70,6 @@ export function effect<TState extends Reactiveable>(
 ): void {
     const context = Reflect.get(state, ReactiveTag)
     if (context instanceof ReactiveContext) {
-        // SAFETY: `as` is safe here because we've already proved state has a reactive context
         context.capture(state, func)
     } else {
         func(state)

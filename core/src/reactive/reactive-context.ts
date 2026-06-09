@@ -1,160 +1,200 @@
 import type { Reactiveable, StateFunc } from "./reactive-types.ts"
 
 type EffectId = number & { __tag: EffectId }
-
-type BindingMap<TState extends Reactiveable> = Map<keyof TState, PropBinding<TState, keyof TState>>
-
-type PropBinding<TState extends Reactiveable, TKey extends keyof TState> = {
-    lastValue: TState[TKey] | undefined
-    // Stores each effect bound to this property, as well as
-    effectBindings?: Map<EffectId, EffectBinding>
-}
-
-type EffectBinding = {
+type Effect<TState extends Reactiveable> = {
     effectId: EffectId
-    bound: boolean
-    boundDescendants?: Set<EffectId>
+    func: StateFunc<TState>
+    bindings?: Set<keyof TState>
+    children?: EffectId[]
 }
 
-type Trigger<TState extends Reactiveable, TKey extends keyof TState> = {
-    state: TState
-    prop: TKey
-    value: TState[TKey]
-    effectId: EffectId | undefined
+type Trigger<TState extends Reactiveable> = {
+    prop: keyof TState
+    sourceEffects: Set<EffectId | null>
 }
 
 export default class ReactiveContext<TState extends Reactiveable> {
     private _nextEffectId: EffectId = 0 as EffectId
-    private readonly _effectRegistry: Map<EffectId, StateFunc<TState>> = new Map()
-    private readonly _propBindings: BindingMap<TState> = new Map()
-
     private readonly _effectStack: EffectId[] = []
-    private readonly _triggerStack: Trigger<TState, keyof TState>[] = []
+    private readonly _effectRegistry: Map<EffectId, Effect<TState>> = new Map()
+    private readonly _rootEffects: EffectId[] = []
 
-    private get currentEffectId(): EffectId | undefined {
-        return this._effectStack[this._effectStack.length - 1]
+    private readonly _triggerQueue: Trigger<TState>[] = []
+
+    private get topEffect(): Effect<TState> | undefined {
+        if (!this._effectStack.length) return undefined
+        return this._effectRegistry.get(this._effectStack[this._effectStack.length - 1])
     }
 
+    /**
+     * Captures an effect, recording any bindings between that effect and state properties used during that effect's
+     * execution.
+     */
     capture(state: TState, func: StateFunc<TState>) {
-        const effectId = this._nextEffectId++ as EffectId
-        this._effectRegistry.set(effectId, func)
-        this._effectStack.push(effectId)
+        const parent = this.topEffect
+
+        // SAFETY: `as` is safe because EffectId is an illusion anyway
+        const effect = { effectId: this._nextEffectId++ as EffectId, func }
+        this._effectRegistry.set(effect.effectId, effect)
+
+        if (parent) {
+            parent.children ??= []
+            parent.children.push(effect.effectId)
+        } else {
+            this._rootEffects.push(effect.effectId)
+        }
+
+        this._effectStack.push(effect.effectId)
         try {
             func(state)
         } finally {
             this._effectStack.pop()
+        }
 
-            // If the captured effect was not bound, clean up by removing it from the registry
-            let bound = false
-            for (const [_, { effectBindings }] of this._propBindings) {
-                if (!effectBindings) continue
-                const binding = effectBindings.get(effectId)
-                if (!binding) continue
-                if (binding.bound) {
-                    bound = true
-                } else {
-                    effectBindings.delete(effectId)
-                }
-            }
-            if (!bound) {
-                this._effectRegistry.delete(effectId)
-            }
+        // If there's no parent effect, there must not be anything in the effect stack now,
+        // so release the triggers in the queue
+        if (!parent) {
+            this.releaseQueuedTriggers(state)
         }
     }
 
-    bindCurrentEffect<TKey extends keyof TState>(prop: TKey, currentValue: TState[TKey]): void {
-        // if we don't currently have any effects captured, nothing to bind
-        const currentEffectId = this.currentEffectId
-        if (currentEffectId === undefined) return
+    /**
+     * Called when a property on the state for this context is retrieved.
+     * If there are any current effects being executed, create a binding for that effect to this property.
+     * @param prop
+     */
+    notifyPropGet<TKey extends keyof TState>(prop: TKey): void {
+        const currentEffect = this.topEffect
+        if (!currentEffect) return
 
-        // If there are any existing bindings for this prop, check if any of them belong to an ancestor or descendant of us
-        const effectBindings = this._propBindings.get(prop)?.effectBindings
-        if (effectBindings?.size) {
-            for (let i = this._effectStack.length - 1; i >= 0; i--) {
-                const stackElement = this._effectStack[i]
-                const stackBinding = effectBindings.get(stackElement)
-                if (stackBinding?.bound) {
-                    // There is already a binding for this prop for an ancestor of the current effect, don't need to bind
-                    return
-                }
+        currentEffect.bindings ??= new Set()
+        currentEffect.bindings.add(prop)
+    }
+
+    /**
+     * Called when a property on the state for this context is modified.
+     * Enqueues the change trigger, and there isn't a current effect being executed, "release" the change triggers
+     * to call the effects bound to them.
+     * @param state
+     * @param prop
+     */
+    notifyPropSet<TKey extends keyof TState>(state: TState, prop: TKey): void {
+        const currentEffect = this.topEffect
+        const sourceEffectId = currentEffect?.effectId ?? null
+
+        // Ensure this trigger is in the queue
+        let trigger = this._triggerQueue.find((n) => n.prop === prop)
+        if (trigger) {
+            // if the trigger is already in the queue, add the current effect as a source to the existing trigger...
+            trigger.sourceEffects.add(sourceEffectId)
+        } else {
+            // ...otherwise, push a new trigger onto the queue
+            trigger = { prop, sourceEffects: new Set() }
+            trigger.sourceEffects.add(sourceEffectId)
+            this._triggerQueue.push(trigger)
+        }
+
+        // If there's no current effect, the effect stack is empty, so release the triggers in the queue
+        if (!currentEffect) {
+            this.releaseQueuedTriggers(state)
+        }
+    }
+
+    /** Loops through the trigger queue, releasing each trigger in the order they were queued in */
+    private releaseQueuedTriggers(state: TState): void {
+        const alreadyReleased = new Set<keyof TState>()
+        while (this._triggerQueue.length) {
+            const trigger = this._triggerQueue[0]
+
+            // infinite loop mitigation: only release this trigger if we haven't already released one for the same prop.
+            if (!alreadyReleased.has(trigger.prop)) {
+                this.releaseTrigger(state, trigger)
+                alreadyReleased.add(trigger.prop)
             }
+            this._triggerQueue.shift()
+        }
+    }
 
-            // if any of the current effect's descendants are already registered for the same prop, unregister them
-            const descendants = effectBindings.get(currentEffectId)?.boundDescendants
-            if (descendants?.size) {
-                for (const descendant of descendants) {
-                    if (effectBindings.has(descendant)) {
-                        effectBindings.delete(descendant)
-                        descendants.delete(descendant)
+    /** "Releases" a trigger, calling effects that are bound to the trigger's property */
+    private releaseTrigger(state: TState, trigger: Trigger<TState>): void {
+        const { prop, sourceEffects } = trigger
+
+        // traverse the tree depth-first, searching for effects that are bound to this property
+        const inner = (effectIds: EffectId[]) => {
+            for (const effectId of effectIds) {
+                const effect = this._effectRegistry.get(effectId)
+                if (!effect) throw new Error(`Effect ${effectId} could not be found in the registry`)
+
+                this._effectStack.push(effectId)
+                try {
+                    if (effect.bindings?.has(prop)) {
+                        // if all the sources of this trigger are descendants of this effect, don't trigger this effect
+                        if (this.allIdsAreDescendants(sourceEffects, effectId)) continue
+
+                        // clear existing bindings because the new run of the func might result in different bindings
+                        effect.bindings.clear()
+
+                        // remove descendants from the registry because the new run of the func will re-capture
+                        // descendant effects
+                        for (const descendant of this.descendants(effectId, false)) {
+                            this._effectRegistry.delete(descendant.effectId)
+                        }
+                        if (effect.children) {
+                            effect.children.length = 0
+                        }
+
+                        // directly call the func instead of using `capture` because we don't need to re-register
+                        // this effect and we're managing the effect stack here.
+                        effect.func(state)
+                    } else if (effect.children?.length) {
+                        // this effect is not bound to this property, but it has children, so check them.
+                        inner(effect.children)
                     }
+                } finally {
+                    this._effectStack.pop()
                 }
             }
         }
 
-        this.bindEffect(prop, currentEffectId, currentValue)
+        inner(this._rootEffects)
     }
 
-    triggerProp<TKey extends keyof TState>(state: TState, prop: TKey, newValue: TState[TKey]): void {
-        const effectId = this.currentEffectId
-        const propBinding = this._propBindings.get(prop)
-        if (!propBinding) return
+    /** Determines if all the given effectIds are descendants of the given ancestorID */
+    private allIdsAreDescendants(effectIds: Set<EffectId | null>, ancestorId: EffectId): boolean {
+        // null id cannot be a descendant
+        if (effectIds.has(null)) return false
 
-        const { lastValue, effectBindings } = propBinding
-
-        if (lastValue === newValue) return
-        propBinding.lastValue = newValue
-
-        if (!effectBindings) return
-        propBinding.effectBindings = undefined
-
-        // If there is already a trigger on the stack for this prop, don't run effects again
-        if (this._triggerStack.some((stackTrigger) => stackTrigger.prop == prop)) {
-            return
+        // root ids that are not the current id cannot be a descendant
+        for (const rootEffectId of this._rootEffects) {
+            if (rootEffectId !== ancestorId && effectIds.has(rootEffectId)) return false
         }
 
-        // If this trigger was created by an effect that is bound to this trigger's prop, don't trigger
-        if (effectId !== undefined && effectBindings.has(effectId)) {
-            return
+        const copy = new Set(effectIds)
+        copy.delete(null)
+
+        // remove descendants from the set
+        for (const descendant of this.descendants(ancestorId, true)) {
+            copy.delete(descendant.effectId)
+
+            // if there's nothing left in the set, then all ids in the original set must have been descendants
+            if (copy.size === 0) return true
         }
 
-        this._triggerStack.push({ state, prop, value: newValue, effectId })
-        try {
-            for (const [effectId, { bound, boundDescendants }] of effectBindings) {
-                if (!bound) continue
-                if (boundDescendants?.size) continue
-
-                // SAFETY: `!` is safe here because in order for an effect to be bound, it must be in the registry
-                const func = this._effectRegistry.get(effectId)!
-                this._effectRegistry.delete(effectId)
-
-                this.capture(state, func)
-            }
-        } finally {
-            this._triggerStack.pop()
-        }
+        return false
     }
 
-    private bindEffect<TKey extends keyof TState>(prop: TKey, effectId: EffectId, value: TState[TKey]) {
-        // add effect to bindings for prop
-        const propBinding = this._propBindings.getOrInsertComputed(prop, (_) => ({ lastValue: undefined }))
-        propBinding.lastValue = value
-        propBinding.effectBindings ??= new Map()
-        const exisingBinding = propBinding.effectBindings.getOrInsertComputed(
-            effectId,
-            (_) => ({ effectId, bound: true }),
-        )
-        exisingBinding.bound = true
+    /** Iterates through all descendants of the given effect in depth-first order */
+    private *descendants(effectId: EffectId, includeSelf: boolean = false): Iterable<Effect<TState>> {
+        const effect = this._effectRegistry.get(effectId)
+        if (!effect) throw new Error(`Could not find effect: ${effectId}`)
 
-        // add effect as a bound descendant of all ancestors
-        if (this._effectStack.length > 1) {
-            for (let i = this._effectStack.length - 2; i >= 0; i--) {
-                const stackElement = this._effectStack[i]
-                const effectBinding = propBinding.effectBindings.getOrInsertComputed(
-                    stackElement,
-                    (_) => ({ effectId, bound: false }),
-                )
-                effectBinding.boundDescendants ??= new Set()
-                effectBinding.boundDescendants.add(effectId)
+        if (includeSelf) yield effect
+
+        if (effect.children?.length) {
+            for (const childId of effect.children) {
+                for (const descendant of this.descendants(childId, true)) {
+                    yield descendant
+                }
             }
         }
     }
