@@ -20,8 +20,14 @@ export type HtmlEventListener<TEvent extends Event, TElement extends EventTarget
     evt: TEvent & { currentTarget: TElement },
 ) => void
 
+/** Returns a type of the valid HTML attributes for the given element */
+export type HtmlElementAttrs<TElement extends HTMLElement> = {
+    // deno-lint-ignore ban-types -- We _want_ to exclude any Function
+    [K in keyof TElement as TElement[K] extends Function ? never : K]?: TElement[K] | AnyData
+}
+
 /** Returns a type of the valid HTML attributes for the given tag */
-export type HtmlElementAttrs<TTag extends HtmlTag = HtmlTag> = OmitReadonly<OmitFunctions<HtmlElement<TTag>>>
+export type HtmlTagAttrs<TTag extends HtmlTag> = HtmlElementAttrs<HtmlElement<TTag>>
 
 /** Valid CSS attributes */
 export type CssAttrs = OmitReadonly<OmitFunctions<CSSStyleDeclaration>>

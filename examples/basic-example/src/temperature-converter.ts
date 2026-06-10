@@ -10,37 +10,36 @@ export function temperatureConverter(root: HtmlBuilder, initialCelsius: number |
     effect(state, (state) => state.fahrenheit = cToF(state.celsius))
     effect(state, (state) => state.celsius = fToC(state.fahrenheit))
 
-    root.tag("div", { className: "flex flex-col flex-gap" }, (div) => {
-        div
-            .component(temperatureField, state, "celsius")
-            .component(temperatureField, state, "fahrenheit")
+    root.tag("div", ({ attrs, component }) => {
+        attrs({ className: "flex flex-col flex-gap" })
+        component(temperatureField, state, "celsius")
+        component(temperatureField, state, "fahrenheit")
     })
 }
 
 function temperatureField(root: HtmlBuilder, state: State, prop: "celsius" | "fahrenheit"): void {
     const fieldId = `${prop}-field`
-    root.tag("div", (div) => {
-        div
-            .tag("label", { htmlFor: fieldId }, (label) => label.text(`${prop}: `))
-            .tag("input", { id: fieldId, type: "number", step: "0.1" }, (input) => {
-                input
-                    .reactive(state, (state) => input.attr("value", state[prop]))
-                    .on("change", (evt) => state[prop] = evt.currentTarget.valueAsNumber)
-            })
+    root.tag("div", ({ tag }) => {
+        tag("label", ({ attrs, replaceText }) => {
+            attrs({ htmlFor: fieldId })
+            replaceText(`${prop}: `)
+        })
+        tag("input", ({ attrs, attr, on }) => {
+            attrs({ id: fieldId, type: "number", step: "0.1" })
+            effect(state, (state) => attr("value", state[prop]))
+            on("change", (evt) => state[prop] = evt.currentTarget.valueAsNumber)
+        })
     })
 }
 
 function cToF(c: number | null): number | null {
-    return discardNonNumbers(c, (c) => roundTo(c * (9 / 5) + 32))
+    if (c === null || Number.isNaN(c)) return null
+    return roundTo(c * (9 / 5) + 32)
 }
 
 function fToC(f: number | null): number | null {
-    return discardNonNumbers(f, (f) => roundTo((f - 32) * (5 / 9)))
-}
-
-function discardNonNumbers(num: number | null, func: (num: number) => number): number | null {
-    if (num === null || Number.isNaN(num)) return null
-    return func(num)
+    if (f === null || Number.isNaN(f)) return null
+    return roundTo((f - 32) * (5 / 9))
 }
 
 function roundTo(num: number, precision: number = 0.0001): number {
