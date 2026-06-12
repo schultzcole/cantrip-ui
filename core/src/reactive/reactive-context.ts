@@ -21,8 +21,12 @@ export default class ReactiveContext<TState extends Reactiveable> {
 
     private readonly _triggerQueue: Trigger<TState>[] = []
 
+    private get emptyStack(): boolean {
+        return !this._effectStack.length
+    }
+
     private get topEffect(): Effect<TState> | undefined {
-        if (!this._effectStack.length) return undefined
+        if (this.emptyStack) return undefined
         return this._effectRegistry.get(this._effectStack[this._effectStack.length - 1])
     }
 
