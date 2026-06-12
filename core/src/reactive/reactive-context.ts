@@ -21,6 +21,8 @@ export default class ReactiveContext<TState extends Reactiveable> {
 
     private readonly _triggerQueue: Trigger<TState>[] = []
 
+    constructor(private readonly state: TState) {}
+
     private get emptyStack(): boolean {
         return !this._effectStack.length
     }
@@ -34,7 +36,7 @@ export default class ReactiveContext<TState extends Reactiveable> {
      * Captures an effect, recording any bindings between that effect and state properties used during that effect's
      * execution.
      */
-    capture(state: TState, func: StateFunc<TState>) {
+    capture(func: StateFunc<TState>) {
         const parent = this.topEffect
 
         // SAFETY: `as` is safe because EffectId is an illusion anyway
@@ -50,7 +52,7 @@ export default class ReactiveContext<TState extends Reactiveable> {
 
         this._effectStack.push(effect.effectId)
         try {
-            func(state)
+            func(this.state)
         } finally {
             this._effectStack.pop()
         }
@@ -58,7 +60,7 @@ export default class ReactiveContext<TState extends Reactiveable> {
         // If there's no parent effect, there must not be anything in the effect stack now,
         // so release the triggers in the queue
         if (!parent) {
-            this.releaseQueuedTriggers(state)
+            this.releaseQueuedTriggers()
         }
     }
 
@@ -79,10 +81,9 @@ export default class ReactiveContext<TState extends Reactiveable> {
      * Called when a property on the state for this context is modified.
      * Enqueues the change trigger, and there isn't a current effect being executed, "release" the change triggers
      * to call the effects bound to them.
-     * @param state
      * @param prop
      */
-    notifyPropSet<TKey extends keyof TState>(state: TState, prop: TKey): void {
+    notifyPropSet<TKey extends keyof TState>(prop: TKey): void {
         const currentEffect = this.topEffect
         const sourceEffectId = currentEffect?.effectId ?? null
 
@@ -100,19 +101,19 @@ export default class ReactiveContext<TState extends Reactiveable> {
 
         // If there's no current effect, the effect stack is empty, so release the triggers in the queue
         if (!currentEffect) {
-            this.releaseQueuedTriggers(state)
+            this.releaseQueuedTriggers()
         }
     }
 
     /** Loops through the trigger queue, releasing each trigger in the order they were queued in */
-    private releaseQueuedTriggers(state: TState): void {
+    private releaseQueuedTriggers(): void {
         const alreadyReleased = new Set<keyof TState>()
         while (this._triggerQueue.length) {
             const trigger = this._triggerQueue[0]
 
             // infinite loop mitigation: only release this trigger if we haven't already released one for the same prop.
             if (!alreadyReleased.has(trigger.prop)) {
-                this.releaseTrigger(state, trigger)
+                this.releaseTrigger(trigger)
                 alreadyReleased.add(trigger.prop)
             }
             this._triggerQueue.shift()
@@ -120,7 +121,7 @@ export default class ReactiveContext<TState extends Reactiveable> {
     }
 
     /** "Releases" a trigger, calling effects that are bound to the trigger's property */
-    private releaseTrigger(state: TState, trigger: Trigger<TState>): void {
+    private releaseTrigger(trigger: Trigger<TState>): void {
         const { prop, sourceEffects } = trigger
 
         // traverse the tree depth-first, searching for effects that are bound to this property
@@ -149,7 +150,7 @@ export default class ReactiveContext<TState extends Reactiveable> {
 
                         // directly call the func instead of using `capture` because we don't need to re-register
                         // this effect and we're managing the effect stack here.
-                        effect.func(state)
+                        effect.func(this.state)
                     } else if (effect.children?.length) {
                         // this effect is not bound to this property, but it has children, so check them.
                         inner(effect.children)
