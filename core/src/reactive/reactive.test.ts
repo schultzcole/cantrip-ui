@@ -247,6 +247,53 @@ describe("reactive", () => {
             assertEquals(state, { value1: 8, value2: 1, value3: 3 })
         })
     })
+
+    describe("nested state", () => {
+        type State = { foo: { bar: string } }
+        it("updating nested property triggers parent effect", () => {
+            const state: State = reactive({ foo: { bar: "baz" } })
+
+            const calls: string[] = []
+            effect(state, (state) => {
+                calls.push(state.foo.bar)
+            })
+
+            state.foo.bar = "qux"
+
+            assertEquals(calls, ["baz", "qux"])
+        })
+
+        it("updating nested property triggers inner effect but not outer effect", () => {
+            const state: State = reactive({ foo: { bar: "baz" } })
+
+            const calls: string[] = []
+            effect(state, (state) => {
+                effect(state.foo, () => {
+                    calls.push(state.foo.bar)
+                })
+            })
+
+            state.foo.bar = "qux"
+
+            assertEquals(calls, ["baz", "qux"])
+        })
+
+        it("nested prop used in nested effects doesn't double trigger inner effect on change", () => {
+            const state: State = reactive({ foo: { bar: "baz" } })
+
+            const calls: string[] = []
+            effect(state, (state) => {
+                use(state.foo.bar)
+                effect(state.foo, () => {
+                    calls.push(state.foo.bar)
+                })
+            })
+
+            state.foo.bar = "qux"
+
+            assertEquals(calls, ["baz", "qux"])
+        })
+    })
 })
 
 /** placeholder for using some value, to avoid linter warnings */
