@@ -2,10 +2,11 @@ import { HtmlBuilder } from "../../../core/mod.ts"
 import "./style.css"
 import { counter } from "./counter.ts"
 import { temperatureConverter } from "./temperature-converter.ts"
+import { flightBooker } from "./flight-booker.ts"
 
 HtmlBuilder.build(document.getElementById("app")!, (_, { tag }) => {
     tag("h1", (heading) => heading.replaceText("Demystica 7GUIs"))
-    tag<'div'>("div", (col, { tag }) => {
+    tag<"div">("div", (col, { tag }) => {
         col.attrs({ className: "flex flex-col flex-gap" })
 
         tag("div", (panel) => {
@@ -34,7 +35,10 @@ HtmlBuilder.build(document.getElementById("app")!, (_, { tag }) => {
         })
 
         tag("div", (panel) => {
-            panel.attrs({ className: "panel drop-shadow" }).html(`<h2>Flight Booker</h2>`)
+            panel
+                .attrs({ className: "panel drop-shadow" })
+                .html(`<h2>Flight Booker</h2>`)
+                .component(flightBooker, Temporal.Now.plainDateISO())
         })
 
         tag("div", (panel) => {
