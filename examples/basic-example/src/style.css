@@ -1,6 +1,7 @@
 :root {
     --body-font: system-ui;
-    font-family: var(--body-font), sans-serif;
+    font-family:
+        var(--body-font), sans-serif;
     color: #1f1f1f;
 
     --accent-color: #dd6026;
@@ -120,7 +121,8 @@ label[for] {
 
 input {
     &[type="text"], &[type="number"], &[type="date"] {
-        font-family: var(--body-font), sans-serif;
+        font-family:
+            var(--body-font), sans-serif;
         border: 2px rgba(0, 0, 0, 0.2) solid;
         border-radius: var(--radius);
         padding: 8px;
