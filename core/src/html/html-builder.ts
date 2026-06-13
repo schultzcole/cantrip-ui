@@ -22,12 +22,9 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
         this.element = this.document.createElement(thisTag, {})
     }
 
-    static build<TElement extends HTMLElement>(
-        element: TElement,
-        func: (builder: HtmlBuilder<"template">) => void,
-    ): TElement {
+    static build<TElement extends HTMLElement>(element: TElement, func: BuilderFunc<'template'>): TElement {
         const builder = new HtmlBuilder("template")
-        func(functionBindWrapper(builder))
+        builder.callBuilderFunc(func)
         builder.mount(element)
         return element
     }
@@ -219,21 +216,15 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
      * @param childTag the tag to append
      * @param func a function to call with an `HtmlBuilder` for the appended element.
      */
-    tag<TChild extends HtmlTag>(
-        childTag: TChild,
-        func?: (child: HtmlBuilder<TChild>) => void,
-    ): this {
+    tag<TChild extends HtmlTag>(childTag: TChild, func?: BuilderFunc<TChild>): this {
         const childBuilder = new (this.constructor as typeof HtmlBuilder)(childTag, this.document)
-        // wrap the child builder in a proxy that automatically binds methods to the child builder.
-        // without this, destructuring the child builder in the passed-in function would result in unbound methods.
 
-        this.appendChild(
-            childBuilder.element instanceof HTMLTemplateElement ? childBuilder.element.content : childBuilder.element,
-        )
+        const child = childBuilder.element instanceof HTMLTemplateElement
+            ? childBuilder.element.content
+            : childBuilder.element
+        this.appendChild(child)
 
-        if (func) {
-            func(functionBindWrapper(childBuilder))
-        }
+        if (func) childBuilder.callBuilderFunc(func)
 
         return this
     }
@@ -287,22 +278,26 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
     mount(mountElement: HTMLElement) {
         mountElement.appendChild(this.element instanceof HTMLTemplateElement ? this.element.content : this.element)
     }
-}
 
-const functionBindProxyHandler = {
-    get(target: object, prop: PropertyKey, receiver: object) {
-        const value = Reflect.get(target, prop, receiver)
-        if (value instanceof Function) {
-            return value.bind(target)
-        } else {
-            return value
+    private callBuilderFunc(func: BuilderFunc<TTag>): void {
+        if (func.length == 1) {
+            // SAFETY: `!` is safe because we know that the given func won't pay attention to that param
+            func(this, undefined!)
+        } else if (func.length == 2) {
+            func(this, {
+                tag: this.tag.bind(this),
+                component: this.component.bind(this)
+            })
         }
-    },
+    }
 }
 
-function functionBindWrapper<T extends object>(thing: T): T {
-    return new Proxy<T>(thing, functionBindProxyHandler)
+export interface BuilderApi<TTag extends HtmlTag> {
+    tag<TChild extends HtmlTag>(childTag: TChild, func?: BuilderFunc<TChild>): void
+    component<TComp extends Component<HtmlBuilder<TTag>>>(comp: TComp, ...args: ComponentParameters<TComp>): void
 }
+
+export type BuilderFunc<TTag extends HtmlTag> = (builder: HtmlBuilder<TTag>, api: BuilderApi<TTag>) => void
 
 function stringify(value: AnyData): string | undefined {
     if (typeof value === "object") {
