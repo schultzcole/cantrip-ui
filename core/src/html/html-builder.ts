@@ -10,8 +10,8 @@ import type {
     HtmlTag,
     HtmlTagAttrs,
 } from "./html-types.ts"
-import { Reactiveable } from "../reactive/reactive-types.ts"
-import { effect } from "../../mod.ts"
+import type { Reactiveable } from "../reactive/reactive-types.ts"
+import { effect } from "../reactive/reactive.ts"
 
 /**
  * Thin builder class for creating html hierarchies. Each builder instance is a wrapper around an actual DOM element.
@@ -277,12 +277,18 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
      */
     domEffect<TState extends Reactiveable>(
         state: TState,
-        func: (state: TState, builder: HtmlBuilder<"div">, api: BuilderApi<"div">) => void,
+        func: (state: TState, builder: HtmlBuilder<"template">, api: BuilderApi<"template">) => void,
     ): this {
-        const innerBuilder = this.returnTag("div")
-        innerBuilder.style({ display: "contents" }) // makes it so this wrapper div doesn't affect layout.
+        const container = this.element.appendChild(this.document.createElement("div"))
+        container.style.display = "contents" // makes it so this wrapper div doesn't affect layout.
 
-        let api: BuilderApi<"div"> | undefined
+        // Create a separate template builder to pass to the state function. This is desirable because it more strongly
+        // conveys that only the _content_ of the builder is reactive; the properties are not. This API nudges users
+        // to make sure they're applying properties in the correct location (the element _containing_ the reactive
+        // container, not the reactive container itself)
+        const innerBuilder = new HtmlBuilder("template", this.document)
+
+        let api: BuilderApi<"template"> | undefined
         if (func.length == 3) {
             api = {
                 tag: innerBuilder.tag.bind(innerBuilder),
@@ -292,9 +298,10 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
         }
 
         effect(state, (state) => {
-            innerBuilder.element.replaceChildren()
+            innerBuilder.element.content.replaceChildren()
             // SAFETY: `!` is safe because we know that api will exist if the caller is expecting a value there
             func(state, innerBuilder, api!)
+            container.replaceChildren(...innerBuilder.element.content.childNodes)
         })
 
         return this
