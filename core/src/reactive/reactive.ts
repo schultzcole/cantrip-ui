@@ -6,7 +6,7 @@ const ReactiveTag = Symbol("ReactiveTag")
 /**
  * A type that has been made reactive and is tagged with a ReactiveContext
  */
-type ReactiveTagged<TState extends Reactiveable> = TState & {
+export type ReactiveTagged<TState extends Reactiveable> = TState & {
     [ReactiveTag]: ReactiveContext<TState>
 }
 
@@ -17,26 +17,28 @@ type ReactiveTagged<TState extends Reactiveable> = TState & {
  */
 export function reactive<TState extends Reactiveable>(state: TState): ReactiveTagged<TState> {
     // SAFETY: `as` is safe here because we've already proved state has a reactive context
-    if (state[ReactiveTag] instanceof ReactiveContext) return state as ReactiveTagged<TState>
+    if (isReactive(state)) return state
 
     // SAFETY: `as` is safe here because we're immediately adding the reactive context afterward
     const reactiveState = state as ReactiveTagged<TState>
-    const context = new ReactiveContext<TState>()
-    Object.defineProperty(reactiveState, ReactiveTag, {
-        enumerable: false,
-        configurable: false,
-        writable: false,
-        value: context,
-    })
 
-    return new Proxy<ReactiveTagged<TState>>(
+    const proxy = new Proxy<ReactiveTagged<TState>>(
         reactiveState,
         {
             get<TKey extends keyof TState>(state: ReactiveTagged<TState>, prop: TKey, proxy: TState): TState[TKey] {
-                const value = Reflect.get(state, prop, proxy)
+                let value = Reflect.get(state, prop, proxy)
                 if (prop === ReactiveTag) return value
 
-                state[ReactiveTag].notifyPropGet(prop)
+                const context = state[ReactiveTag]
+                if (isReactiveable(value)) {
+                    // If this child value is also an object, make it reactive too
+                    value = reactive(value)
+                    state[prop] = value
+                    getReactiveContext(value as Reactiveable)?.registerParentContext(context, prop)
+                }
+
+                context.notifyPropGet(prop)
+
                 return value
             },
 
@@ -52,12 +54,29 @@ export function reactive<TState extends Reactiveable>(state: TState): ReactiveTa
                 if (prop === ReactiveTag) return result
 
                 if (oldValue !== newValue) {
-                    state[ReactiveTag].notifyPropSet(proxy, prop)
+                    const context = state[ReactiveTag]
+
+                    // If old value has a reactive context, remove this reactive context as a parent
+                    if (isReactiveable(oldValue)) {
+                        getReactiveContext(oldValue)?.deregisterParentContext(context)
+                    }
+
+                    // Then notify this context that the property changed
+                    context.notifyPropSet(prop)
                 }
                 return result
             },
         },
     )
+    const context = new ReactiveContext<TState>(proxy)
+    Object.defineProperty(reactiveState, ReactiveTag, {
+        enumerable: false,
+        configurable: false,
+        writable: false,
+        value: context,
+    })
+
+    return proxy
 }
 
 /**
@@ -70,8 +89,44 @@ export function effect<TState extends Reactiveable>(
 ): void {
     const context = Reflect.get(state, ReactiveTag)
     if (context instanceof ReactiveContext) {
-        context.capture(state, func)
+        context.capture(func)
     } else {
         func(state)
+    }
+}
+
+/**
+ * Returns whether the given t is eligible to be made reactive
+ * @param t
+ */
+export function isReactiveable<T>(t: T): t is T & Reactiveable {
+    return isPojo(t)
+}
+
+/**
+ * Returns whether the given t is a plain record
+ * @param t
+ */
+function isPojo<T>(t: T): t is T & Record<PropertyKey, unknown> {
+    return Boolean(typeof t === "object" && t && (t.constructor == null || t.constructor === Object))
+}
+
+/**
+ * Returns true if the given t is ReactiveTagged
+ */
+export function isReactive<T extends Reactiveable>(t: T): t is ReactiveTagged<T> {
+    return ReactiveTag in t && t[ReactiveTag] instanceof ReactiveContext
+}
+
+/**
+ * Returns the reactive context of a given ReactiveTagged object, or null if the given object is not ReactiveTagged
+ */
+export function getReactiveContext<TState extends Reactiveable>(t: TState): ReactiveContext<TState> | null {
+    if (!(ReactiveTag in t)) return null
+    const context = t[ReactiveTag]
+    if (context instanceof ReactiveContext) {
+        return context
+    } else {
+        return null
     }
 }
