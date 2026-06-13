@@ -34,8 +34,10 @@ export function reactive<TState extends Reactiveable>(state: TState): ReactiveTa
                     // If this child value is also an object, make it reactive too
                     value = reactive(value)
                     state[prop] = value
-                    // SAFETY: `as` is safe here because the child context doesn't care what type the parent context is
-                    getReactiveContext(value as Reactiveable)?.registerParentContext(context as ReactiveContext<Reactiveable>, prop)
+                    // SAFETY: `as` is safe here because value must be reactiveable at this point
+                    getReactiveContext(value as Reactiveable)
+                        // SAFETY: `as` is safe here because the child context doesn't care what type the parent context is
+                        ?.registerParentContext(context as ReactiveContext<Reactiveable>, prop)
                 }
 
                 context.notifyPropGet(prop)
