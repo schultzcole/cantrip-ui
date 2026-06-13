@@ -8,5 +8,6 @@
         "indentWidth": 4,
         "lineWidth": 120
     },
-    "exclude": ["**/.vite/", "**/dist/"]
+    "exclude": ["**/.vite/", "**/dist/"],
+    "nodeModulesDir": "auto"
 }

@@ -1,246 +1,243 @@
-export type TriggerMode = "sync" | "async"
+import type { Reactiveable, StateFunc } from "./reactive-types.ts"
+import type { ReactiveTagged } from "./reactive.ts"
 
-export type EffectOptions = {
-    triggerMode?: TriggerMode
+type EffectId = number & { __tag: EffectId }
+type Effect<TState extends Reactiveable> = {
+    effectId: EffectId
+    func: StateFunc<TState>
+    bindings?: Set<keyof TState>
+    children?: EffectId[]
 }
 
-/**
- * Responsible for tracking "frames" that use its corresponding state and re-executing those frames when the state changes.
- */
-export default class ReactiveContext {
-    private activeFrame: CaptureFrame | null = null
-    private activeCaptures: Set<string> | null = null
+type Trigger<TState extends Reactiveable> = {
+    prop: keyof TState
+    sourceEffects: Set<EffectId | null>
+}
 
-    private frameMap = new Map<number, CaptureFrame>()
-    private descendantsMap = new Map<number, Set<number>>()
-    private ancestorsMap = new Map<number, Set<number>>()
+type ParentContext = ReactiveContext<unknown & Reactiveable>
 
-    private asyncTriggerMap = new Map<string, Set<number>>()
-    private immediateTriggerMap = new Map<string, Set<number>>()
-    private queuePromise: Promise<void> | null = null
-    private queuedTriggerPaths = new Set<string>()
+export default class ReactiveContext<TState extends Reactiveable> {
+    private readonly _parentContexts: Map<ParentContext, PropertyKey> = new Map()
 
-    /**
-     * Capture state accesses within the given function. When any state used in the function is mutated, the function will be called again.
-     * @remarks
-     * The default behavior of effect is that when any of the captured state used in the function is mutated, the function will be
-     * queued to be called in a batch to reduce duplicate updates. You can override this behavior and execute immediately by passing immediate = true.
-     * @param immediate whether the effect function will be called immediately upon any captured state being mutated.
-     */
-    effect(func: () => void, { triggerMode = "async" }: EffectOptions = {}): void {
-        const captureFrame = this.createCaptureFrame(func, triggerMode ?? "async")
-        this.capture(captureFrame)
+    private _nextEffectId: EffectId = 0 as EffectId
+    private readonly _effectStack: EffectId[] = []
+    private readonly _effectRegistry: Map<EffectId, Effect<TState>> = new Map()
+    private readonly _rootEffects: EffectId[] = []
+
+    private readonly _triggerQueue: Trigger<TState>[] = []
+
+    constructor(private readonly proxiedState: ReactiveTagged<TState>) {}
+
+    registerParentContext(parentContext: ParentContext, parentProp: PropertyKey): void {
+        this._parentContexts.getOrInsert(parentContext, parentProp)
+    }
+
+    deregisterParentContext(parentContext: ParentContext): void {
+        this._parentContexts.delete(parentContext)
+    }
+
+    private get emptyStack(): boolean {
+        return !this._effectStack.length
+    }
+
+    private get topEffect(): Effect<TState> | undefined {
+        if (this.emptyStack) return undefined
+        return this._effectRegistry.get(this._effectStack[this._effectStack.length - 1])
     }
 
     /**
-     * Returns a Promise that will resolve when any enqueued effect triggers have completed.
-     * @remarks In general, you shouldn't need to call this in normal app code
-     * @returns true if any effect triggers were enqueued, otherwise false
+     * Captures an effect, recording any bindings between that effect and state properties used during that effect's
+     * execution.
      */
-    completeEffects(): Promise<boolean> {
-        return this.queuePromise?.then(() => true) ?? Promise.resolve(false)
-    }
+    capture(func: StateFunc<TState>) {
+        const parentEffect = this.topEffect
 
-    /**
-     * Registers a get at the given path, if this reactive context has an active frame
-     * @internal
-     */
-    _register(path: string): void {
-        this.activeCaptures?.add(path)
-    }
-
-    /**
-     * Registers a set at the given path, triggering any frames that depend on this path
-     * @internal
-     */
-    _trigger(path: string): void {
-        if (this.immediateTriggerMap.has(path)) {
-            const frameIds = this.immediateTriggerMap.get(path)!
-            this.executeFrames(frameIds)
+        if (!parentEffect) {
+            // If our stack is empty, but a parent context's stack is not empty, capture this effect on the parent
+            let foundParent = false
+            for (const [parentContext, parentProp] of this._parentContexts) {
+                // SAFETY: `as` is safe because by definition, the parent state must be an object that has a property
+                //         called parentProp with the type TState.
+                const typedParentContext = parentContext as ReactiveContext<{ [key: typeof parentProp]: TState }>
+                if (!typedParentContext.emptyStack) {
+                    typedParentContext.capture((parentState) => func(parentState[parentProp]))
+                    foundParent = true
+                }
+            }
+            if (foundParent) return
         }
 
-        if (this.asyncTriggerMap.has(path)) {
-            this.queuedTriggerPaths.add(path)
-            this.queuePromise ??= new Promise((resolve) => {
-                queueMicrotask(() => {
-                    this.consumeTriggerQueue()
-                    this.queuePromise = null
-                    resolve()
-                })
-            })
+        // SAFETY: `as` is safe because EffectId is an illusion anyway
+        const effect = { effectId: this._nextEffectId++ as EffectId, func }
+        this._effectRegistry.set(effect.effectId, effect)
+
+        if (parentEffect) {
+            parentEffect.children ??= []
+            parentEffect.children.push(effect.effectId)
+        } else {
+            this._rootEffects.push(effect.effectId)
         }
-    }
 
-    /**
-     * Register a new frame with pre-captured paths from an ambient effect.
-     * @internal
-     */
-    _addAmbientCapture(func: () => void, capturedPaths: Set<string>) {
-        const captureFrame = this.createCaptureFrame(func, "async")
-        this.subscribeFrameToPaths(captureFrame, capturedPaths)
-    }
-
-    /** Creates a new capture frame with the given function, registers ancestors and descendants */
-    private createCaptureFrame(func: () => void, triggerMode: TriggerMode): CaptureFrame {
-        const captureFrame = new CaptureFrame(this.activeFrame?.id ?? null, func, triggerMode)
-        this.populateAncestorsAndDescendants(captureFrame)
-        this.frameMap.set(captureFrame.id, captureFrame)
-        return captureFrame
-    }
-
-    /** Executes the given capture frame, capturing accessed state paths, then subscribing the frame to the captured paths. */
-    private capture(captureFrame: CaptureFrame): Set<string> {
-        const capturedPaths = new Set<string>()
-        const oldActiveCaptures = this.activeCaptures
+        this._effectStack.push(effect.effectId)
         try {
-            this.activeFrame = captureFrame
-            this.activeCaptures = capturedPaths
-            captureFrame.func()
+            func(this.proxiedState)
         } finally {
-            if (captureFrame.parentId) {
-                this.activeFrame = this.frameMap.get(captureFrame.parentId)!
-            } else {
-                this.activeFrame = null
-            }
-            this.activeCaptures = oldActiveCaptures
+            this._effectStack.pop()
         }
 
-        this.subscribeFrameToPaths(captureFrame, capturedPaths)
-
-        return capturedPaths
-    }
-
-    /** Given a frame and set of captured paths, registers the frame to be executed when the given paths are triggered */
-    private subscribeFrameToPaths(frame: CaptureFrame, capturedPaths: Set<string>) {
-        const triggerMap = (frame.triggerMode == "sync") ? this.immediateTriggerMap : this.asyncTriggerMap
-        for (const path of capturedPaths) {
-            if (triggerMap.has(path)) {
-                const existingFrames = triggerMap.get(path)!
-
-                const mutatedFrames = this.ensureAncestor(existingFrames, frame.id)
-                triggerMap.set(path, mutatedFrames)
-            } else {
-                triggerMap.set(path, new Set([frame.id]))
-            }
-        }
-    }
-
-    /** Adds the given frame as a descendant of each of its ancestors and sets this frame's ancestors */
-    private populateAncestorsAndDescendants(frame: CaptureFrame) {
-        const ancestors = new Set<number>()
-        let current: CaptureFrame | undefined = frame
-        while (current && current.parentId) {
-            if (this.descendantsMap.has(current.parentId)) {
-                this.descendantsMap.get(current.parentId)!.add(frame.id)
-            } else {
-                this.descendantsMap.set(current.parentId, new Set([frame.id]))
-            }
-            ancestors.add(current.parentId)
-            current = this.frameMap.get(current.parentId)
-        }
-        this.ancestorsMap.set(frame.id, ancestors)
-    }
-
-    /** Removes all captures, triggers, and descendants for this frame */
-    private clearFrame(frame: CaptureFrame) {
-        const frameId = frame.id
-
-        const descendants = this.descendantsMap.get(frameId)
-        this.descendantsMap.delete(frameId)
-
-        // Clear any triggers for this frame and its descendants
-        for (const key of this.asyncTriggerMap.keys()) {
-            let set = this.asyncTriggerMap.get(key)!
-            if (descendants) {
-                set = set.difference(descendants)
-            }
-            set.delete(frameId)
-            this.asyncTriggerMap.set(key, set)
-        }
-
-        if (!descendants) return
-
-        // Clear descendants of all ancestors
-        const ancestors = this.ancestorsMap.get(frameId)
-        if (ancestors) {
-            for (const ancestorId of ancestors) {
-                this.removeDescendants(ancestorId, descendants)
-            }
-        }
-
-        // Remove descendants
-        for (const descendantId of descendants) {
-            this.frameMap.delete(descendantId)
-            this.ancestorsMap.delete(descendantId)
-            this.descendantsMap.delete(descendantId)
-        }
-    }
-
-    /** Removes the given descendants from the descendants map of the given ancestor */
-    private removeDescendants(ancestorId: number, descendantsToClear: Set<number>) {
-        const descendants = this.descendantsMap.get(ancestorId)
-        if (!descendants) return
-
-        const newDescendants = descendants.difference(descendantsToClear)
-        this.descendantsMap.set(ancestorId, newDescendants)
-    }
-
-    /** Executes async frames for paths that have been enqueued */
-    private consumeTriggerQueue() {
-        const paths = Array.from(this.queuedTriggerPaths)
-        this.queuedTriggerPaths.clear()
-
-        const frameIds = new Set<number>()
-        for (const path of paths) {
-            const pathFrameIds = this.asyncTriggerMap.get(path)!
-            this.asyncTriggerMap.delete(path)
-            for (const pathFrameId of pathFrameIds) {
-                this.ensureAncestor(frameIds, pathFrameId)
-            }
-        }
-        this.executeFrames(frameIds)
-    }
-
-    /** Executes the frames with the given IDs. */
-    private executeFrames(frameIds: Set<number>): void {
-        for (const id of frameIds) {
-            const frame = this.frameMap.get(id)
-            if (!frame) continue
-            this.clearFrame(frame)
-            this.capture(frame)
+        // If there's no parent effect, there must not be anything in the effect stack now,
+        // so release the triggers in the queue
+        if (!parentEffect) {
+            this.releaseQueuedTriggers()
         }
     }
 
     /**
-     * Given a set of frameIds and a frameId:
-     * - if an ancestor of the given frameId is already in the set, do nothing
-     * - Otherwise, add the given frameId to the set and ensure none of its children are in the set
+     * Called when a property on the state for this context is retrieved.
+     * If there are any current effects being executed, create a binding for that effect to this property.
+     * @param prop
      */
-    private ensureAncestor(frameIds: Set<number>, frameId: number): Set<number> {
-        const frameAncestors = this.ancestorsMap.get(frameId)!
-        const frameDescendants = this.descendantsMap.get(frameId)
-
-        if (frameIds.intersection(frameAncestors).size) {
-            // an ancestor is already subscribed to this trigger, skip
-            return frameIds
+    notifyPropGet<TKey extends keyof TState>(prop: TKey): void {
+        const currentEffect = this.topEffect
+        if (!currentEffect) {
+            // We're not capturing any effects, but maybe our parents are
+            for (const [parentContext, parentProp] of this._parentContexts) {
+                if (!parentContext.emptyStack) {
+                    parentContext.notifyPropGet(`${parentProp.toString()}.${prop.toString()}`)
+                }
+            }
+            return
         }
 
-        // subscribe this frame to this trigger...
-        frameIds.add(frameId)
-
-        // and remove any of this frame's descendants from this trigger.
-        if (frameDescendants) {
-            frameIds = frameIds.difference(frameDescendants)
-        }
-        return frameIds
+        currentEffect.bindings ??= new Set()
+        currentEffect.bindings.add(prop)
     }
-}
 
-class CaptureFrame {
-    private static frameNumber = 0
+    /**
+     * Called when a property on the state for this context is modified.
+     * Enqueues the change trigger, and there isn't a current effect being executed, "release" the change triggers
+     * to call the effects bound to them.
+     */
+    notifyPropSet<TKey extends keyof TState>(prop: TKey): void {
+        for (const [parentContext, parentProp] of this._parentContexts) {
+            parentContext.notifyPropSet(`${parentProp.toString()}.${prop.toString()}`)
+        }
 
-    id: number
-    constructor(public parentId: number | null, public func: () => void, public triggerMode: TriggerMode) {
-        this.id = ++CaptureFrame.frameNumber
+        const currentEffect = this.topEffect
+        const sourceEffectId = currentEffect?.effectId ?? null
+
+        // Ensure this trigger is in the queue
+        let trigger = this._triggerQueue.find((n) => n.prop === prop)
+        if (trigger) {
+            // if the trigger is already in the queue, add the current effect as a source to the existing trigger...
+            trigger.sourceEffects.add(sourceEffectId)
+        } else {
+            // ...otherwise, push a new trigger onto the queue
+            trigger = { prop, sourceEffects: new Set() }
+            trigger.sourceEffects.add(sourceEffectId)
+            this._triggerQueue.push(trigger)
+        }
+
+        // If there's no current effect, the effect stack is empty, so release the triggers in the queue
+        if (!currentEffect) {
+            this.releaseQueuedTriggers()
+        }
+    }
+
+    /** Loops through the trigger queue, releasing each trigger in the order they were queued in */
+    private releaseQueuedTriggers(): void {
+        const alreadyReleased = new Set<keyof TState>()
+        while (this._triggerQueue.length) {
+            const trigger = this._triggerQueue[0]
+
+            // infinite loop mitigation: only release this trigger if we haven't already released one for the same prop.
+            if (!alreadyReleased.has(trigger.prop)) {
+                this.releaseTrigger(trigger)
+                alreadyReleased.add(trigger.prop)
+            }
+            this._triggerQueue.shift()
+        }
+    }
+
+    /** "Releases" a trigger, calling effects that are bound to the trigger's property */
+    private releaseTrigger(trigger: Trigger<TState>): void {
+        const { prop, sourceEffects } = trigger
+
+        // traverse the tree depth-first, searching for effects that are bound to this property
+        const inner = (effectIds: Iterable<EffectId>) => {
+            for (const effectId of effectIds) {
+                const effect = this._effectRegistry.get(effectId)
+                if (!effect) throw new Error(`Effect ${effectId} could not be found in the registry`)
+
+                this._effectStack.push(effectId)
+                try {
+                    if (effect.bindings?.has(prop)) {
+                        // if all the sources of this trigger are descendants of this effect, don't trigger this effect
+                        if (this.allIdsAreDescendants(sourceEffects, effectId)) continue
+
+                        // clear existing bindings because the new run of the func might result in different bindings
+                        effect.bindings.clear()
+
+                        // remove descendants from the registry because the new run of the func will re-capture
+                        // descendant effects
+                        for (const descendant of this.descendants(effectId, false)) {
+                            this._effectRegistry.delete(descendant.effectId)
+                        }
+                        if (effect.children) {
+                            effect.children.length = 0
+                        }
+
+                        // directly call the func instead of using `capture` because we don't need to re-register
+                        // this effect and we're managing the effect stack here.
+                        effect.func(this.proxiedState)
+                    } else if (effect.children?.length) {
+                        // this effect is not bound to this property, but it has children, so check them.
+                        inner(effect.children)
+                    }
+                } finally {
+                    this._effectStack.pop()
+                }
+            }
+        }
+
+        inner(this._rootEffects)
+    }
+
+    /** Determines if all the given effectIds are descendants of the given ancestorID */
+    private allIdsAreDescendants(effectIds: Set<EffectId | null>, ancestorId: EffectId): boolean {
+        // null id cannot be a descendant
+        if (effectIds.has(null)) return false
+
+        // root ids that are not the current id cannot be a descendant
+        for (const rootEffectId of this._rootEffects) {
+            if (rootEffectId !== ancestorId && effectIds.has(rootEffectId)) return false
+        }
+
+        const copy = new Set(effectIds)
+        copy.delete(null)
+
+        // remove descendants from the set
+        for (const descendant of this.descendants(ancestorId, true)) {
+            copy.delete(descendant.effectId)
+
+            // if there's nothing left in the set, then all ids in the original set must have been descendants
+            if (copy.size === 0) return true
+        }
+
+        return false
+    }
+
+    /** Iterates through all descendants of the given effect in depth-first order */
+    private *descendants(effectId: EffectId, includeSelf: boolean = false): Iterable<Effect<TState>> {
+        const effect = this._effectRegistry.get(effectId)
+        if (!effect) throw new Error(`Could not find effect: ${effectId}`)
+
+        if (includeSelf) yield effect
+
+        if (effect.children?.length) {
+            for (const childId of effect.children) {
+                yield* this.descendants(childId, true)
+            }
+        }
     }
 }

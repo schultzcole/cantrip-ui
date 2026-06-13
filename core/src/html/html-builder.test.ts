@@ -56,22 +56,6 @@ describe("HtmlBuilder", () => {
 
             assertEquals(document.body.innerHTML, '<div unknownproperty="a value"></div>')
         })
-
-        it("should add single known attr from function", () => {
-            const builder = new HtmlBuilder("div")
-            builder.attr("hidden", () => true)
-            builder.mount(document.body)
-
-            assertEquals(document.body.innerHTML, '<div hidden=""></div>')
-        })
-
-        it("should add single unknown attr from function", () => {
-            const builder = new HtmlBuilder("div")
-            builder.attr("unknownProperty", () => "a value")
-            builder.mount(document.body)
-
-            assertEquals(document.body.innerHTML, '<div unknownproperty="a value"></div>')
-        })
     })
 
     describe("#data", () => {
@@ -86,14 +70,6 @@ describe("HtmlBuilder", () => {
         it("should add single data attribute", () => {
             const builder = new HtmlBuilder("div")
             builder.data("foo", "bar")
-            builder.mount(document.body)
-
-            assertEquals(document.body.innerHTML, `<div data-foo="bar"></div>`)
-        })
-
-        it("should add result of calling function as data attribute", () => {
-            const builder = new HtmlBuilder("div")
-            builder.data("foo", () => "bar")
             builder.mount(document.body)
 
             assertEquals(document.body.innerHTML, `<div data-foo="bar"></div>`)
@@ -113,15 +89,6 @@ describe("HtmlBuilder", () => {
             const builder = new HtmlBuilder("div")
             builder.class("yes", true)
             builder.class("no", false)
-            builder.mount(document.body)
-
-            assertEquals(document.body.innerHTML, '<div class="yes"></div>')
-        })
-
-        it("should add class to element when `force` returns true", () => {
-            const builder = new HtmlBuilder("div")
-            builder.class("yes", () => true)
-            builder.class("no", () => false)
             builder.mount(document.body)
 
             assertEquals(document.body.innerHTML, '<div class="yes"></div>')

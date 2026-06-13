@@ -1,13 +1,11 @@
 {
     "tasks": {
-        "dev": "deno run -A --node-modules-dir npm:vite",
-        "build": "deno run -A --node-modules-dir npm:vite build",
-        "preview": "deno run -A --node-modules-dir npm:vite preview",
-        "serve": "deno run --allow-net --allow-read jsr:@std/http@1/file-server dist/"
+        "dev": "deno run -A npm:vite",
+        "build": "deno run -A npm:vite build",
+        "preview": "deno run -A npm:vite preview"
     },
     "imports": {
-        "@deno/vite-plugin": "npm:@deno/vite-plugin@^1.0.0",
-        "@std/path": "jsr:@std/path@^1.0.7",
-        "vite": "npm:vite@^5.4.9"
+        "@deno/vite-plugin": "npm:@deno/vite-plugin@^2.0.2",
+        "vite": "npm:vite@^8.0.16"
     }
 }

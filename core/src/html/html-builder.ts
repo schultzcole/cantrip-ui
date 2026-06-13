@@ -1,13 +1,14 @@
-import type { AnyData, Component, ComponentParameters, TOrFunc } from "../util/types.ts"
+import type { AnyData, Component, ComponentParameters } from "../util/types.ts"
 import { html } from "./html-tagged-template.ts"
 import type {
     CssAttrs,
+    DataAttrs,
     HtmlElement,
-    HtmlElementAttrs,
     HtmlEventListener,
     HtmlEventType,
     HtmlEventTypeListener,
     HtmlTag,
+    HtmlTagAttrs,
 } from "./html-types.ts"
 
 /**
@@ -21,6 +22,16 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
         this.element = this.document.createElement(thisTag, {})
     }
 
+    static build<TElement extends HTMLElement>(
+        element: TElement,
+        func: (builder: HtmlBuilder<"template">) => void,
+    ): TElement {
+        const builder = new HtmlBuilder("template")
+        func(functionBindWrapper(builder))
+        builder.mount(element)
+        return element
+    }
+
     protected appendChild(node: Node) {
         if (this.element instanceof HTMLTemplateElement) {
             this.element.content.appendChild(node)
@@ -30,24 +41,12 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
     }
 
     /**
-     * Adds the given attributes to this element.
-     * @param attrs the attributes to add to this element
+     * Set the given attrs on this element
+     * @param attrs
      */
-    attrs(attrs: Partial<HtmlElementAttrs<TTag>>): this
-
-    /**
-     * Adds the attributes returned by the given function to this element.
-     * @param func the function that provides the attributes to add to this element
-     */
-    attrs(func: () => Partial<HtmlElementAttrs<TTag>>): this
-
-    attrs(attrs: TOrFunc<Partial<HtmlElementAttrs<TTag>>>): this {
-        if (typeof attrs === "function") {
-            attrs = attrs()
-        }
-
+    attrs(attrs: HtmlTagAttrs<TTag>): this {
         for (const [key, value] of Object.entries(attrs)) {
-            this.attr(key as keyof HtmlElementAttrs<TTag> & string, value as AnyData)
+            this.attr(key as keyof HtmlTagAttrs<TTag>, value as AnyData)
         }
 
         return this
@@ -65,27 +64,9 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
      * @param key the attribute key
      * @param value the value to set for the attribute
      */
-    attr(key: keyof HtmlElementAttrs<TTag> & string, value: AnyData): this
+    attr<TKey extends keyof HtmlTagAttrs<TTag> & string>(key: TKey, value: HtmlTagAttrs<TTag>[TKey]): this
 
-    /**
-     * Set a single arbitrary attribute returned by the given function on this element.
-     * @param key the attribute key
-     * @param value the value provider function
-     */
-    attr(key: string, value: () => AnyData): this
-
-    /**
-     * Set a single known attribute returned by the given function on this element.
-     * @param key the attribute key
-     * @param value the value to set for the attribute
-     */
-    attr(key: keyof HtmlElementAttrs<TTag> & string, value: () => AnyData): this
-
-    attr(key: string, value: TOrFunc<AnyData>): this {
-        if (typeof value === "function") {
-            value = value()
-        }
-
+    attr(key: string, value: AnyData): this {
         if (key in this.element) {
             // Known attribute key
             // deno-lint-ignore no-explicit-any -- just let the element handle whatever gets passed
@@ -106,15 +87,7 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
      * @see https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/dataset#name_conversion
      * @param data the data attributes to add
      */
-    data(data: Record<string, AnyData>): this
-
-    /**
-     * Sets the data attributes on this element from the return value of the givne function.
-     * Attribute names will be converted according to the `dataset` name conversion rules.
-     * @see https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/dataset#name_conversion
-     * @param data the data attributes to add
-     */
-    data(data: () => Record<string, AnyData>): this
+    data(data: DataAttrs): this
 
     /**
      * Sets a specific data attribute on this element.
@@ -125,26 +98,10 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
      */
     data(key: string, value: AnyData): this
 
-    /**
-     * Sets a specific data attribute on this element from the return value of the given function.
-     * The attribute name will be converted according to the `dataset` name conversion rules.
-     * @see https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/dataset#name_conversion
-     * @param key the data attribute key to add
-     * @param value the value to add to the dataset
-     */
-    data(key: string, value: () => AnyData): this
-
-    data(keyOrObj: string | TOrFunc<Record<string, AnyData>>, value?: TOrFunc<AnyData>): this {
+    data(keyOrObj: string | DataAttrs, value?: AnyData): this {
         if (typeof keyOrObj === "string") {
-            if (typeof value === "function") {
-                value = value()
-            }
             this.element.dataset[keyOrObj] = stringify(value)
         } else {
-            if (typeof keyOrObj === "function") {
-                keyOrObj = keyOrObj()
-            }
-
             for (const [key, value] of Object.entries(keyOrObj)) {
                 this.element.dataset[key] = stringify(value)
             }
@@ -158,15 +115,8 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
     /** Adds the given class to this element if `force` is true */
     class(className: string, force: boolean): this
 
-    /** Adds the given class to this element if `force` returns true */
-    class(className: string, force: () => boolean): this
-
-    class(className: string, force?: TOrFunc<boolean>): this {
-        if (typeof force === "function") {
-            force = force()
-        } else {
-            force ??= true
-        }
+    class(className: string, force?: boolean): this {
+        force ??= true
         this.element.classList.toggle(className, force)
         return this
     }
@@ -206,6 +156,16 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
     }
 
     /**
+     * Replace the content of this element with the given text.
+     * @param text
+     */
+    replaceText(text: string): this {
+        const node = this.document.createTextNode(text)
+        this.element.replaceChildren(node)
+        return this
+    }
+
+    /**
      * Append the given html to this element.
      * Use with caution. Make sure the source of the html is trusted. No sanitization is applied to the incoming html string.
      * @param html the html to append to this element
@@ -235,6 +195,26 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
     }
 
     /**
+     * Replace the innerHtml of this element with the given html
+     * @param html
+     */
+    replaceHtml(html: string): this
+
+    /**
+     * Replace the innerHtml of this element with the given html
+     */
+    replaceHtml(strs: TemplateStringsArray, ...values: unknown[]): this
+
+    replaceHtml(strs: string | TemplateStringsArray, ...values: unknown[]): this {
+        if (typeof strs === "string") {
+            this.element.innerHTML = strs.trim()
+        } else {
+            this.element.innerHTML = html(strs, ...values).trim()
+        }
+        return this
+    }
+
+    /**
      * Append a child element with the given tag to this element, then pass an `HtmlBuilder` for the newly appended element to the given function.
      * @param childTag the tag to append
      * @param func a function to call with an `HtmlBuilder` for the appended element.
@@ -244,14 +224,17 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
         func?: (child: HtmlBuilder<TChild>) => void,
     ): this {
         const childBuilder = new (this.constructor as typeof HtmlBuilder)(childTag, this.document)
+        // wrap the child builder in a proxy that automatically binds methods to the child builder.
+        // without this, destructuring the child builder in the passed-in function would result in unbound methods.
 
         this.appendChild(
             childBuilder.element instanceof HTMLTemplateElement ? childBuilder.element.content : childBuilder.element,
         )
 
         if (func) {
-            func(childBuilder)
+            func(functionBindWrapper(childBuilder))
         }
+
         return this
     }
 
@@ -270,30 +253,30 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
 
     /**
      * Register an event listener for a given known event type.
-     * @param type the type of the event to listen for
+     * @param eventType the type of the event to listen for
      * @param listener the function to call when the event is triggered
      * @param options event listener options
      */
     on<T extends HtmlEventType>(
-        type: T,
-        listener: HtmlEventTypeListener<T>,
+        eventType: T,
+        listener: HtmlEventTypeListener<T, HtmlElement<TTag>>,
         options?: boolean | AddEventListenerOptions,
     ): this
 
     /**
      * Register an event listener for a given arbitrary event type.
-     * @param type the type of the event to listen for
+     * @param eventType the type of the event to listen for
      * @param listener the function to call when the event is triggered
      * @param options event listener options
      */
     on<T extends Event>(
-        type: string,
-        listener: HtmlEventListener<T>,
+        eventType: string,
+        listener: HtmlEventListener<T, HtmlElement<TTag>>,
         options?: boolean | AddEventListenerOptions,
     ): this
 
-    on(type: string, listener: EventListener, options?: boolean | AddEventListenerOptions): this {
-        this.element.addEventListener(type, listener, options)
+    on(eventType: string, listener: EventListener, options?: boolean | AddEventListenerOptions): this {
+        this.element.addEventListener(eventType, listener, options)
         return this
     }
 
@@ -304,6 +287,21 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
     mount(mountElement: HTMLElement) {
         mountElement.appendChild(this.element instanceof HTMLTemplateElement ? this.element.content : this.element)
     }
+}
+
+const functionBindProxyHandler = {
+    get(target: object, prop: PropertyKey, receiver: object) {
+        const value = Reflect.get(target, prop, receiver)
+        if (value instanceof Function) {
+            return value.bind(target)
+        } else {
+            return value
+        }
+    },
+}
+
+function functionBindWrapper<T extends object>(thing: T): T {
+    return new Proxy<T>(thing, functionBindProxyHandler)
 }
 
 function stringify(value: AnyData): string | undefined {
