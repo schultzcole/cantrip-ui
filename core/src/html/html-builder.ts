@@ -15,14 +15,18 @@ import type {
  * Builder class for creating arbitrary HTML elements
  */
 export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
-    protected element: HtmlElement<TTag>
+    public readonly element: HtmlElement<TTag>
     protected document: Document
     constructor(public thisTag: TTag, document?: Document) {
         this.document = document ?? globalThis.document
         this.element = this.document.createElement(thisTag, {})
     }
 
-    static build<TElement extends HTMLElement>(element: TElement, func: BuilderFunc<'template'>): TElement {
+    /**
+     * @param element
+     * @param func
+     */
+    static build<TElement extends HTMLElement>(element: TElement, func: BuilderFunc<"template">): TElement {
         const builder = new HtmlBuilder("template")
         builder.callBuilderFunc(func)
         builder.mount(element)
@@ -212,11 +216,24 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
     }
 
     /**
-     * Append a child element with the given tag to this element, then pass an `HtmlBuilder` for the newly appended element to the given function.
+     * Append a child element with the given tag to this element,
+     * then pass an `HtmlBuilder` for the newly appended element to the given function.
      * @param childTag the tag to append
      * @param func a function to call with an `HtmlBuilder` for the appended element.
      */
     tag<TChild extends HtmlTag>(childTag: TChild, func?: BuilderFunc<TChild>): this {
+        const childBuilder = this.returnTag(childTag)
+        if (func) childBuilder.callBuilderFunc(func)
+        return this
+    }
+
+    /**
+     * Append a child element with the given tag to this element,
+     * then return an `HtmlBuilder` for the newly appended element.
+     * @param childTag the tag to append
+     * @return a builder for the appended element
+     */
+    returnTag<TChild extends HtmlTag>(childTag: TChild): HtmlBuilder<TChild> {
         const childBuilder = new (this.constructor as typeof HtmlBuilder)(childTag, this.document)
 
         const child = childBuilder.element instanceof HTMLTemplateElement
@@ -224,9 +241,7 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
             : childBuilder.element
         this.appendChild(child)
 
-        if (func) childBuilder.callBuilderFunc(func)
-
-        return this
+        return childBuilder
     }
 
     /**
@@ -286,7 +301,8 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
         } else if (func.length == 2) {
             func(this, {
                 tag: this.tag.bind(this),
-                component: this.component.bind(this)
+                returnTag: this.returnTag.bind(this),
+                component: this.component.bind(this),
             })
         }
     }
@@ -294,6 +310,7 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
 
 export interface BuilderApi<TTag extends HtmlTag> {
     tag<TChild extends HtmlTag>(childTag: TChild, func?: BuilderFunc<TChild>): void
+    returnTag<TChild extends HtmlTag>(childTag: TChild): HtmlBuilder<TChild>
     component<TComp extends Component<HtmlBuilder<TTag>>>(comp: TComp, ...args: ComponentParameters<TComp>): void
 }
 
