@@ -4,7 +4,7 @@ import { counter } from "./counter.ts"
 import { temperatureConverter } from "./temperature-converter.ts"
 
 HtmlBuilder.build(document.getElementById("app")!, ({ tag }) => {
-    tag("h1", (heading) => heading.replaceText("FOOF 7GUIs"))
+    tag("h1", (heading) => heading.replaceText("Demystica 7GUIs"))
     tag("div", ({ attrs, tag }) => {
         attrs({ className: "flex flex-col flex-gap" })
         tag("div", ({ attrs, html }) => {
@@ -12,7 +12,7 @@ HtmlBuilder.build(document.getElementById("app")!, ({ tag }) => {
             html(
                 `<p>
                     A demo of Eugen Kiss's <a href="https://eugenkiss.github.io/7guis" target="_blank">7GUIs</a>
-                    UI framework benchmark implemented in FOOF.
+                    UI framework benchmark implemented in Demystica.
                 </p>`,
             )
         })
