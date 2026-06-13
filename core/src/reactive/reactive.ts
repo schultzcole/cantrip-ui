@@ -11,9 +11,10 @@ export type ReactiveTagged<TState extends Reactiveable> = TState & {
 }
 
 /**
- * Converts the given state object to a reactive state object.
- * @param state
- * @return the given state, tagged with a reactive context.
+ * Converts the given state object to a reactive state object. When the object is mutated, {@link effect}s bound to the
+ * mutated properties will be re-executed.
+ * @param state the state object that should become reactive
+ * @return the given state, tagged with a reactive context
  */
 export function reactive<TState extends Reactiveable>(state: TState): ReactiveTagged<TState> {
     // SAFETY: `as` is safe here because we've already proved state has a reactive context
@@ -84,8 +85,10 @@ export function reactive<TState extends Reactiveable>(state: TState): ReactiveTa
 }
 
 /**
- * @param state
- * @param func
+ * Registers an effect with the given state object. When properties of the state object that are used within this effect
+ * are mutated, the effect will re-execute with the updated values.
+ * @param state the state over which this effect is reactive
+ * @param func the function to execute in response to mutations
  */
 export function effect<TState extends Reactiveable>(
     state: TState | ReactiveTagged<TState>,

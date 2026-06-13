@@ -10,9 +10,11 @@ import type {
     HtmlTag,
     HtmlTagAttrs,
 } from "./html-types.ts"
+import { Reactiveable } from "../reactive/reactive-types.ts"
+import { effect } from "../../mod.ts"
 
 /**
- * Builder class for creating arbitrary HTML elements
+ * Thin builder class for creating html hierarchies. Each builder instance is a wrapper around an actual DOM element.
  */
 export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
     public readonly element: HtmlElement<TTag>
@@ -23,6 +25,8 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
     }
 
     /**
+     * Given an element on the page, creates a builder and mounts it to that element, passing the builder to a func
+     * and returning the mounted element.
      * @param element
      * @param func
      */
@@ -110,10 +114,17 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
         return this
     }
 
-    /** Adds the given class to this element. */
+    /**
+     * Adds the given class to this element.
+     * @param className the class to add
+     */
     class(className: string): this
 
-    /** Adds the given class to this element if `force` is true */
+    /**
+     * Toggles the given class on this element based on the value of force.
+     * @param className the class to add or remove
+     * @param force if true, add the class to this element, otherwise remove the class
+     */
     class(className: string, force: boolean): this
 
     class(className: string, force?: boolean): this {
@@ -258,6 +269,38 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
     }
 
     /**
+     * Creates a new layout-transparent element bound to a reactive effect. When the effect is executed, DOM contents
+     * within the element are replaced by the new execution.
+     * See documentation for the {@link effect} function.
+     * @param state the state over which this effect will be reactive
+     * @param func the function to execute
+     */
+    domEffect<TState extends Reactiveable>(
+        state: TState,
+        func: (state: TState, builder: HtmlBuilder<"div">, api: BuilderApi<"div">) => void,
+    ): this {
+        const innerBuilder = this.returnTag("div")
+        innerBuilder.style({ display: "contents" }) // makes it so this wrapper div doesn't affect layout.
+
+        let api: BuilderApi<"div"> | undefined
+        if (func.length == 3) {
+            api = {
+                tag: innerBuilder.tag.bind(innerBuilder),
+                returnTag: innerBuilder.returnTag.bind(innerBuilder),
+                component: innerBuilder.component.bind(innerBuilder),
+            }
+        }
+
+        effect(state, (state) => {
+            innerBuilder.element.replaceChildren()
+            // SAFETY: `!` is safe because we know that api will exist if the caller is expecting a value there
+            func(state, innerBuilder, api!)
+        })
+
+        return this
+    }
+
+    /**
      * Register an event listener for a given known event type.
      * @param eventType the type of the event to listen for
      * @param listener the function to call when the event is triggered
@@ -308,6 +351,11 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
     }
 }
 
+/**
+ * Interface for the optional second parameter of a builder func. This interface includes methods that are useful
+ * to call without needing to call them directly from the builder as a receiver, and are pre-bound to the builder
+ * object to allow for destructuring.
+ */
 export interface BuilderApi<TTag extends HtmlTag> {
     tag<TChild extends HtmlTag>(childTag: TChild, func?: BuilderFunc<TChild>): void
     returnTag<TChild extends HtmlTag>(childTag: TChild): HtmlBuilder<TChild>
