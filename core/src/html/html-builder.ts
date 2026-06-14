@@ -24,6 +24,10 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
         return this.checkDetached(this._element)
     }
 
+    get detachedSignal(): AbortSignal {
+        return this._abortController.signal
+    }
+
     private _element: HtmlElement<TTag> | undefined
     private _abortController: AbortController
     protected document: Document
