@@ -3,6 +3,7 @@ import "./style.css"
 import { counter } from "./counter.ts"
 import { temperatureConverter } from "./temperature-converter.ts"
 import { flightBooker } from "./flight-booker.ts"
+import { timer } from "./timer.ts"
 
 HtmlBuilder.build(document.getElementById("app")!, (root) => {
     root.tag("h1", (heading) => heading.html(`<em>cantrip</em> ui - 7GUIs`))
@@ -43,7 +44,10 @@ HtmlBuilder.build(document.getElementById("app")!, (root) => {
         })
 
         col.tag("div", (panel) => {
-            panel.attrs({ className: "panel drop-shadow" }).html(`<h2>Timer</h2>`)
+            panel
+                .attrs({ className: "panel drop-shadow" })
+                .html(`<h2>Timer</h2>`)
+                .component(timer)
         })
 
         col.tag("div", (panel) => {

@@ -144,3 +144,23 @@ select {
 label + input {
     margin-left: var(--gap);
 }
+
+.timer-grid {
+    display: grid;
+    grid-template-columns: auto 1fr 6ch;
+    gap: var(--gap);
+
+    .timer-grid-row {
+        display: grid;
+        grid-template-columns: subgrid;
+        grid-column: span 3;
+
+        .right-align {
+            text-align: end;
+        }
+    }
+
+    input[type=range] {
+        margin: 0;
+    }
+}
