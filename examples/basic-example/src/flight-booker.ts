@@ -31,37 +31,35 @@ export function flightBooker(root: HtmlBuilder, initialStartDate: Temporal.Plain
         }
     })
 
-    root.tag("form", (form, { tag, returnTag }) => {
+    root.tag("form", (form) => {
         form
             .attrs({ className: "flex flex-col flex-gap flex-align-center" })
 
         // Mode select
-        returnTag("select")
+        form.returnTag("select")
             .attrs({ value: state.mode })
             .style({ alignSelf: "stretch" })
-            .on("change", (evt) => state.mode = evt.currentTarget.value as Mode)
             .component(selectOptions, MODES)
+            .on("change", (evt) => state.mode = evt.currentTarget.value as Mode)
 
         // Start date
-        tag("div", (_, { tag, returnTag }) => {
-            returnTag("label").attrs({ htmlFor: "start-date" }).text("Start Date:")
-            tag("input", (startField) => {
+        form.tag("div", (div) => {
+            div.returnTag("label").attrs({ htmlFor: "start-date" }).text("Start Date:")
+            div.tag("input", (startField) => {
                 startField
                     .attrs({ id: "start-date", type: "date" })
+                    .effect(state, (state) => startField.attr("value", state.startDate))
                     .on("change", (evt) => state.startDate = evt.currentTarget.value)
-                    .effect(state, (state) => {
-                        startField.attr("value", state.startDate)
-                    })
             })
         })
 
         // Return date
-        tag("div", (_, { tag, returnTag }) => {
-            returnTag("label").attrs({ htmlFor: "return-date" }).text("Return Date:")
-            tag("input", (returnField) => {
+        form.tag("div", (div) => {
+            div.returnTag("label").attrs({ htmlFor: "return-date" }).text("Return Date:")
+
+            div.tag("input", (returnField) => {
                 returnField
                     .attrs({ id: "return-date", type: "date" })
-                    .on("change", (evt) => state.endDate = evt.currentTarget.value)
                     .effect(state, (state) => {
                         returnField.attrs({
                             disabled: state.mode !== "RETURN",
@@ -83,18 +81,17 @@ export function flightBooker(root: HtmlBuilder, initialStartDate: Temporal.Plain
                         returnField.element.setCustomValidity(invalidMessage)
                         returnField.element.reportValidity()
                     })
+                    .on("change", (evt) => state.endDate = evt.currentTarget.value)
             })
         })
 
         // Submit button
-        tag("button", (button) => {
+        form.tag("button", (button) => {
             button
                 .attrs({ type: "button" })
                 .text("Book")
+                .effect(state, (state) => button.attr("disabled", !validate(state)))
                 .on("click", (_) => bookFlight(state))
-                .effect(state, (state) => {
-                    button.attr("disabled", !validate(state))
-                })
         })
     })
 }

@@ -58,7 +58,7 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
      */
     static build<TElement extends HTMLElement>(element: TElement, func: BuilderFunc<"template">): TElement {
         const builder = new HtmlBuilder("template")
-        this.callBuilderFunc(builder, func)
+        func(builder)
         builder.mount(element)
         return element
     }
@@ -267,7 +267,7 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
     tag<TChild extends HtmlTag>(childTag: TChild, func?: BuilderFunc<TChild>): this {
         const childBuilder = this.returnTag(childTag)
         if (func) {
-            HtmlBuilder.callBuilderFunc(childBuilder, func)
+            func(childBuilder)
         }
         return this
     }
@@ -329,7 +329,7 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
         }
 
         effect(state, (state) => {
-            HtmlBuilder.callEffectBuilderFunc(this, state, func)
+            func(state, this)
         }, config)
 
         return this
@@ -371,7 +371,7 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
 
         effect(state, (state) => {
             innerBuilder.element.content.replaceChildren()
-            HtmlBuilder.callEffectBuilderFunc(innerBuilder, state, func)
+            func(state, innerBuilder)
             container.replaceChildren(innerBuilder.element.content)
         }, config)
 
@@ -415,48 +415,6 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
         const element = this.checkDetached(this._element)
         mountElement.appendChild(element instanceof HTMLTemplateElement ? element.content : element)
     }
-
-    private static callBuilderFunc<TTag extends HtmlTag>(builder: HtmlBuilder<TTag>, func: BuilderFunc<TTag>): void {
-        let api: BuilderApi<TTag> | undefined
-        if (func.length == 2) {
-            api = this.bindBuilderApi(builder)
-        }
-        // SAFETY: `!` is safe because undefined will only be passed if the given func doesn't accept a second param
-        func(builder, api!)
-    }
-
-    private static callEffectBuilderFunc<TTag extends HtmlTag, TState extends Reactiveable>(
-        builder: HtmlBuilder<TTag>,
-        state: TState,
-        func: EffectBuilderFunc<TState, TTag>,
-    ): void {
-        let api: BuilderApi<TTag> | undefined
-        if (func.length == 3) {
-            api = this.bindBuilderApi(builder)
-        }
-        // SAFETY: `!` is safe because undefined will only be passed if the given func doesn't accept a third param
-        func(state, builder, api!)
-    }
-
-    private static bindBuilderApi<TTag extends HtmlTag>(builder: HtmlBuilder<TTag>): BuilderApi<TTag> {
-        return {
-            tag: (...args) => {
-                builder.tag(...args)
-            },
-            returnTag: (...args) => {
-                return builder.returnTag(...args)
-            },
-            component: (...args) => {
-                builder.component(...args)
-            },
-            effect: (...args) => {
-                builder.effect(...args)
-            },
-            domEffect: (...args) => {
-                builder.domEffect(...args)
-            },
-        }
-    }
 }
 
 /**
@@ -487,11 +445,10 @@ export interface BuilderApi<TTag extends HtmlTag> {
     domEffect<TState extends Reactiveable>(state: TState, func: EffectBuilderFunc<TState, "template">): void
 }
 
-export type BuilderFunc<TTag extends HtmlTag> = (builder: HtmlBuilder<TTag>, api: BuilderApi<TTag>) => void
+export type BuilderFunc<TTag extends HtmlTag> = (builder: HtmlBuilder<TTag>) => void
 export type EffectBuilderFunc<TState extends Reactiveable, TTag extends HtmlTag> = (
     state: TState,
     builder: HtmlBuilder<TTag>,
-    api: BuilderApi<TTag>,
 ) => void
 
 function stringify(value: AnyData): string | undefined {

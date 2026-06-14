@@ -10,20 +10,20 @@ export function temperatureConverter(root: HtmlBuilder, initialCelsius: number |
     root.effect(state, (state) => state.fahrenheit = cToF(state.celsius))
     root.effect(state, (state) => state.celsius = fToC(state.fahrenheit))
 
-    root.tag("div", (div, { component }) => {
+    root.tag("div", (div) => {
         div.attrs({ className: "flex flex-col flex-gap" })
-        component(temperatureField, state, "celsius")
-        component(temperatureField, state, "fahrenheit")
+        div.component(temperatureField, state, "celsius")
+        div.component(temperatureField, state, "fahrenheit")
     })
 }
 
 function temperatureField(root: HtmlBuilder, state: State, prop: "celsius" | "fahrenheit"): void {
     const fieldId = `${prop}-field`
-    root.tag("div", (_, { tag }) => {
-        tag("label", (label) => {
+    root.tag("div", (div) => {
+        div.tag("label", (label) => {
             label.attrs({ htmlFor: fieldId }).replaceText(`${prop}: `)
         })
-        tag("input", (input) => {
+        div.tag("input", (input) => {
             input
                 .attrs({ id: fieldId, type: "number", step: "any" })
                 .on("change", (evt) => state[prop] = evt.currentTarget.valueAsNumber)
