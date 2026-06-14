@@ -1,5 +1,5 @@
 import type { Reactiveable, StateFunc } from "./reactive-types.ts"
-import type { ReactiveTagged } from "./reactive.ts"
+import type { EffectConfig, ReactiveTagged } from "./reactive.ts"
 
 type EffectId = number & { __tag: EffectId }
 type Effect<TState extends Reactiveable> = {
@@ -49,7 +49,9 @@ export default class ReactiveContext<TState extends Reactiveable> {
      * Captures an effect, recording any bindings between that effect and state properties used during that effect's
      * execution.
      */
-    capture(func: StateFunc<TState>) {
+    capture(func: StateFunc<TState>, config?: EffectConfig): void {
+        config?.abortSignal?.throwIfAborted()
+
         const parentEffect = this.topEffect
 
         if (!parentEffect) {
@@ -69,6 +71,8 @@ export default class ReactiveContext<TState extends Reactiveable> {
 
         // SAFETY: `as` is safe because EffectId is an illusion anyway
         const effect = { effectId: this._nextEffectId++ as EffectId, func }
+        config?.abortSignal?.addEventListener("abort", (_) => this.abortEffect(effect.effectId))
+
         this._effectRegistry.set(effect.effectId, effect)
 
         if (parentEffect) {
@@ -201,6 +205,20 @@ export default class ReactiveContext<TState extends Reactiveable> {
         }
 
         inner(this._rootEffects)
+    }
+
+    private abortEffect(effectId: EffectId): void {
+        const effect = this._effectRegistry.get(effectId)
+        if (!effect) return
+
+        for (const descendant of this.descendants(effectId, false)) {
+            this._effectRegistry.delete(descendant.effectId)
+        }
+        if (effect.children) {
+            effect.children.length = 0
+        }
+
+        this._effectRegistry.delete(effectId)
     }
 
     /** Determines if all the given effectIds are descendants of the given ancestorID */

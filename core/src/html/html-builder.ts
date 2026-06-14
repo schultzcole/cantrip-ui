@@ -11,17 +11,43 @@ import type {
     HtmlTagAttrs,
 } from "./html-types.ts"
 import type { Reactiveable } from "../reactive/reactive-types.ts"
-import { effect } from "../reactive/reactive.ts"
+import { effect, type EffectConfig } from "../reactive/reactive.ts"
+import { RemovalObserver } from "./removal-observer.ts"
+
+const removalObservers = new WeakMap<Document, RemovalObserver>()
 
 /**
  * Thin builder class for creating html hierarchies. Each builder instance is a wrapper around an actual DOM element.
  */
 export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
-    public readonly element: HtmlElement<TTag>
+    get element(): HtmlElement<TTag> {
+        return this.checkDetached(this._element)
+    }
+
+    private _element: HtmlElement<TTag> | undefined
+    private _abortController: AbortController
     protected document: Document
     constructor(public thisTag: TTag, document?: Document) {
         this.document = document ?? globalThis.document
-        this.element = this.document.createElement(thisTag, {})
+        this._element = this.document.createElement(thisTag, {})
+
+        // used to remove any event listeners or effects created by this builder.
+        this._abortController = new AbortController()
+
+        removalObservers
+            .getOrInsertComputed(this.document, () => new RemovalObserver(this.document))
+            .registerBuilder(this)
+    }
+
+    private checkDetached(element: HtmlElement<TTag> | undefined): HtmlElement<TTag> {
+        if (element == undefined) throw new DetachedBuilderError("builder has been detached from its element.")
+        return element
+    }
+
+    detach(): void {
+        this.checkDetached(this._element)
+        this._element = undefined
+        this._abortController.abort()
     }
 
     /**
@@ -32,16 +58,17 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
      */
     static build<TElement extends HTMLElement>(element: TElement, func: BuilderFunc<"template">): TElement {
         const builder = new HtmlBuilder("template")
-        builder.callBuilderFunc(func)
+        this.callBuilderFunc(builder, func)
         builder.mount(element)
         return element
     }
 
     protected appendChild(node: Node) {
-        if (this.element instanceof HTMLTemplateElement) {
-            this.element.content.appendChild(node)
+        const element = this.checkDetached(this._element)
+        if (element instanceof HTMLTemplateElement) {
+            element.content.appendChild(node)
         } else {
-            this.element.appendChild(node)
+            element.appendChild(node)
         }
     }
 
@@ -72,16 +99,17 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
     attr<TKey extends keyof HtmlTagAttrs<TTag> & string>(key: TKey, value: HtmlTagAttrs<TTag>[TKey]): this
 
     attr(key: string, value: AnyData): this {
-        if (key in this.element) {
+        const element = this.checkDetached(this._element)
+        if (key in element) {
             // Known attribute key
             // deno-lint-ignore no-explicit-any -- just let the element handle whatever gets passed
-            this.element[key as keyof HtmlElement<TTag>] = value as any
+            element[key as keyof HtmlElement<TTag>] = value as any
         } else if (value != undefined) {
             // Unknown attribute key
             // deno-lint-ignore no-explicit-any -- just let the element handle whatever gets passed
-            this.element.setAttribute(key, value as any)
+            element.setAttribute(key, value as any)
         } else {
-            this.element.removeAttribute(key)
+            element.removeAttribute(key)
         }
         return this
     }
@@ -104,11 +132,12 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
     data(key: string, value: AnyData): this
 
     data(keyOrObj: string | DataAttrs, value?: AnyData): this {
+        const element = this.checkDetached(this._element)
         if (typeof keyOrObj === "string") {
-            this.element.dataset[keyOrObj] = stringify(value)
+            element.dataset[keyOrObj] = stringify(value)
         } else {
             for (const [key, value] of Object.entries(keyOrObj)) {
-                this.element.dataset[key] = stringify(value)
+                element.dataset[key] = stringify(value)
             }
         }
         return this
@@ -128,8 +157,8 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
     class(className: string, force: boolean): this
 
     class(className: string, force?: boolean): this {
-        force ??= true
-        this.element.classList.toggle(className, force)
+        const element = this.checkDetached(this._element)
+        element.classList.toggle(className, force ?? true)
         return this
     }
 
@@ -140,7 +169,8 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
      * @param styles the styles to add
      */
     style(styles: Partial<CssAttrs>): this {
-        Object.assign(this.element.style, styles)
+        const element = this.checkDetached(this._element)
+        Object.assign(element.style, styles)
         return this
     }
 
@@ -150,9 +180,9 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
      * @param props the css properties to add
      */
     css(props: Record<string, string>): this {
-        this.element.style.webkitTextStroke
+        const element = this.checkDetached(this._element)
         for (const [key, value] of Object.entries(props)) {
-            this.element.style.setProperty(key, value)
+            element.style.setProperty(key, value)
         }
         return this
     }
@@ -172,8 +202,9 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
      * @param text
      */
     replaceText(text: string): this {
+        const element = this.checkDetached(this._element)
         const node = this.document.createTextNode(text)
-        this.element.replaceChildren(node)
+        element.replaceChildren(node)
         return this
     }
 
@@ -218,10 +249,11 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
     replaceHtml(strs: TemplateStringsArray, ...values: unknown[]): this
 
     replaceHtml(strs: string | TemplateStringsArray, ...values: unknown[]): this {
+        const element = this.checkDetached(this._element)
         if (typeof strs === "string") {
-            this.element.innerHTML = strs.trim()
+            element.innerHTML = strs.trim()
         } else {
-            this.element.innerHTML = html(strs, ...values).trim()
+            element.innerHTML = html(strs, ...values).trim()
         }
         return this
     }
@@ -234,7 +266,9 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
      */
     tag<TChild extends HtmlTag>(childTag: TChild, func?: BuilderFunc<TChild>): this {
         const childBuilder = this.returnTag(childTag)
-        if (func) childBuilder.callBuilderFunc(func)
+        if (func) {
+            HtmlBuilder.callBuilderFunc(childBuilder, func)
+        }
         return this
     }
 
@@ -269,17 +303,57 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
     }
 
     /**
-     * Creates a new layout-transparent element bound to a reactive effect. When the effect is executed, DOM contents
-     * within the element are replaced by the new execution.
+     * Binds a reactive effect to this element. Unlike {@link domEffect}, the effect being executed does not replace
+     * this element's contents.
+     *
+     * If this element is detached from the DOM, the effect will be unbound and won't execute again.
+     *
      * See documentation for the {@link effect} function.
+     *
      * @param state the state over which this effect will be reactive
      * @param func the function to execute
+     * @param config configuration for the effect
+     */
+    effect<TState extends Reactiveable>(
+        state: TState,
+        func: EffectBuilderFunc<TState, TTag>,
+        config?: EffectConfig,
+    ): this {
+        this.checkDetached(this._element)
+
+        config ??= {}
+        if (config.abortSignal) {
+            config.abortSignal = AbortSignal.any([config.abortSignal, this._abortController.signal])
+        } else {
+            config.abortSignal = this._abortController.signal
+        }
+
+        effect(state, (state) => {
+            HtmlBuilder.callEffectBuilderFunc(this, state, func)
+        }, config)
+
+        return this
+    }
+
+    /**
+     * Creates a new layout-transparent element bound to a reactive effect. When the effect is executed, DOM contents
+     * within the element are replaced by the new execution.
+     *
+     * If this element is detached from the DOM, the effect will be unbound and won't execute again.
+     *
+     * See documentation for the {@link effect} function.
+     *
+     * @param state the state over which this effect will be reactive
+     * @param func the function to execute
+     * @param config configuration for the effect
      */
     domEffect<TState extends Reactiveable>(
         state: TState,
-        func: (state: TState, builder: HtmlBuilder<"template">, api: BuilderApi<"template">) => void,
+        func: EffectBuilderFunc<TState, "template">,
+        config?: EffectConfig,
     ): this {
-        const container = this.element.appendChild(this.document.createElement("div"))
+        const element = this.checkDetached(this._element)
+        const container = element.appendChild(this.document.createElement("div"))
         container.style.display = "contents" // makes it so this wrapper div doesn't affect layout.
 
         // Create a separate template builder to pass to the state function. This is desirable because it more strongly
@@ -288,21 +362,18 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
         // container, not the reactive container itself)
         const innerBuilder = new HtmlBuilder("template", this.document)
 
-        let api: BuilderApi<"template"> | undefined
-        if (func.length == 3) {
-            api = {
-                tag: innerBuilder.tag.bind(innerBuilder),
-                returnTag: innerBuilder.returnTag.bind(innerBuilder),
-                component: innerBuilder.component.bind(innerBuilder),
-            }
+        config ??= {}
+        if (config.abortSignal) {
+            config.abortSignal = AbortSignal.any([config.abortSignal, this._abortController.signal])
+        } else {
+            config.abortSignal = this._abortController.signal
         }
 
         effect(state, (state) => {
             innerBuilder.element.content.replaceChildren()
-            // SAFETY: `!` is safe because we know that api will exist if the caller is expecting a value there
-            func(state, innerBuilder, api!)
-            container.replaceChildren(...innerBuilder.element.content.childNodes)
-        })
+            HtmlBuilder.callEffectBuilderFunc(innerBuilder, state, func)
+            container.replaceChildren(innerBuilder.element.content)
+        }, config)
 
         return this
     }
@@ -332,7 +403,7 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
     ): this
 
     on(eventType: string, listener: EventListener, options?: boolean | AddEventListenerOptions): this {
-        this.element.addEventListener(eventType, listener, options)
+        this.checkDetached(this._element).addEventListener(eventType, listener, options)
         return this
     }
 
@@ -341,20 +412,61 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
      * @param mountElement the html element into which to mount this element
      */
     mount(mountElement: HTMLElement) {
-        mountElement.appendChild(this.element instanceof HTMLTemplateElement ? this.element.content : this.element)
+        const element = this.checkDetached(this._element)
+        mountElement.appendChild(element instanceof HTMLTemplateElement ? element.content : element)
     }
 
-    private callBuilderFunc(func: BuilderFunc<TTag>): void {
-        if (func.length == 1) {
-            // SAFETY: `!` is safe because we know that the given func won't pay attention to that param
-            func(this, undefined!)
-        } else if (func.length == 2) {
-            func(this, {
-                tag: this.tag.bind(this),
-                returnTag: this.returnTag.bind(this),
-                component: this.component.bind(this),
-            })
+    private static callBuilderFunc<TTag extends HtmlTag>(builder: HtmlBuilder<TTag>, func: BuilderFunc<TTag>): void {
+        let api: BuilderApi<TTag> | undefined
+        if (func.length == 2) {
+            api = this.bindBuilderApi(builder)
         }
+        // SAFETY: `!` is safe because undefined will only be passed if the given func doesn't accept a second param
+        func(builder, api!)
+    }
+
+    private static callEffectBuilderFunc<TTag extends HtmlTag, TState extends Reactiveable>(
+        builder: HtmlBuilder<TTag>,
+        state: TState,
+        func: EffectBuilderFunc<TState, TTag>,
+    ): void {
+        let api: BuilderApi<TTag> | undefined
+        if (func.length == 3) {
+            api = this.bindBuilderApi(builder)
+        }
+        // SAFETY: `!` is safe because undefined will only be passed if the given func doesn't accept a third param
+        func(state, builder, api!)
+    }
+
+    private static bindBuilderApi<TTag extends HtmlTag>(builder: HtmlBuilder<TTag>): BuilderApi<TTag> {
+        return {
+            tag: (...args) => {
+                builder.tag(...args)
+            },
+            returnTag: (...args) => {
+                return builder.returnTag(...args)
+            },
+            component: (...args) => {
+                builder.component(...args)
+            },
+            effect: (...args) => {
+                builder.effect(...args)
+            },
+            domEffect: (...args) => {
+                builder.domEffect(...args)
+            },
+        }
+    }
+}
+
+/**
+ * Thrown if a mutating operation is performed on a {@link HtmlBuilder} that has been detached.
+ */
+export class DetachedBuilderError extends Error {
+    constructor(message?: string) {
+        super(message)
+        this.name = new.target.name
+        Error.captureStackTrace?.(this, new.target)
     }
 }
 
@@ -365,11 +477,22 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
  */
 export interface BuilderApi<TTag extends HtmlTag> {
     tag<TChild extends HtmlTag>(childTag: TChild, func?: BuilderFunc<TChild>): void
+
     returnTag<TChild extends HtmlTag>(childTag: TChild): HtmlBuilder<TChild>
+
     component<TComp extends Component<HtmlBuilder<TTag>>>(comp: TComp, ...args: ComponentParameters<TComp>): void
+
+    effect<TState extends Reactiveable>(state: TState, func: EffectBuilderFunc<TState, TTag>): void
+
+    domEffect<TState extends Reactiveable>(state: TState, func: EffectBuilderFunc<TState, "template">): void
 }
 
 export type BuilderFunc<TTag extends HtmlTag> = (builder: HtmlBuilder<TTag>, api: BuilderApi<TTag>) => void
+export type EffectBuilderFunc<TState extends Reactiveable, TTag extends HtmlTag> = (
+    state: TState,
+    builder: HtmlBuilder<TTag>,
+    api: BuilderApi<TTag>,
+) => void
 
 function stringify(value: AnyData): string | undefined {
     if (typeof value === "object") {

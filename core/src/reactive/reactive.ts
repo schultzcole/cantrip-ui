@@ -85,18 +85,28 @@ export function reactive<TState extends Reactiveable>(state: TState): ReactiveTa
 }
 
 /**
+ * Configuration for an effect
+ */
+export type EffectConfig = {
+    /** An abort signal to cancel the effect */
+    abortSignal?: AbortSignal
+}
+
+/**
  * Registers an effect with the given state object. When properties of the state object that are used within this effect
  * are mutated, the effect will re-execute with the updated values.
  * @param state the state over which this effect is reactive
  * @param func the function to execute in response to mutations
+ * @param config configuration for the effect
  */
 export function effect<TState extends Reactiveable>(
     state: TState | ReactiveTagged<TState>,
     func: StateFunc<TState>,
+    config?: EffectConfig,
 ): void {
     const context = Reflect.get(state, ReactiveTag)
     if (context instanceof ReactiveContext) {
-        context.capture(func)
+        context.capture(func, config)
     } else {
         func(state)
     }
