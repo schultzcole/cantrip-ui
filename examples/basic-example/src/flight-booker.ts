@@ -1,4 +1,4 @@
-import { effect, HtmlBuilder, reactive } from "../../../core/mod.ts"
+import { HtmlBuilder, reactive } from "../../../core/mod.ts"
 import { selectOptions } from "./shared-components/select-options.ts"
 import { unreachable } from "./utils.ts"
 
@@ -25,7 +25,7 @@ export function flightBooker(root: HtmlBuilder, initialStartDate: Temporal.Plain
         endDate: undefined,
     } as UiState)
 
-    effect(state, (state) => {
+    root.effect(state, (state) => {
         if (state.mode === "ONE_WAY") {
             state.endDate = undefined
         }
@@ -49,9 +49,9 @@ export function flightBooker(root: HtmlBuilder, initialStartDate: Temporal.Plain
                 startField
                     .attrs({ id: "start-date", type: "date" })
                     .on("change", (evt) => state.startDate = evt.currentTarget.value)
-                effect(state, (state) => {
-                    startField.attr("value", state.startDate)
-                })
+                    .effect(state, (state) => {
+                        startField.attr("value", state.startDate)
+                    })
             })
         })
 
@@ -62,28 +62,27 @@ export function flightBooker(root: HtmlBuilder, initialStartDate: Temporal.Plain
                 returnField
                     .attrs({ id: "return-date", type: "date" })
                     .on("change", (evt) => state.endDate = evt.currentTarget.value)
+                    .effect(state, (state) => {
+                        returnField.attrs({
+                            disabled: state.mode !== "RETURN",
+                            value: state.endDate,
+                        })
 
-                effect(state, (state) => {
-                    returnField.attrs({
-                        disabled: state.mode !== "RETURN",
-                        value: state.endDate,
-                    })
-
-                    let invalidMessage: string = ""
-                    const startDate = parseDate(state.startDate)
-                    if (!startDate) {
-                        return
-                    } else if (state.endDate) {
-                        const endDate = parseDate(state.endDate)
-                        if (!endDate) {
-                            invalidMessage = "Return Date is not valid"
-                        } else if (Temporal.PlainDate.compare(endDate, startDate) < 0) {
-                            invalidMessage = "Return Date must be after Start Date"
+                        let invalidMessage: string = ""
+                        const startDate = parseDate(state.startDate)
+                        if (!startDate) {
+                            return
+                        } else if (state.endDate) {
+                            const endDate = parseDate(state.endDate)
+                            if (!endDate) {
+                                invalidMessage = "Return Date is not valid"
+                            } else if (Temporal.PlainDate.compare(endDate, startDate) < 0) {
+                                invalidMessage = "Return Date must be after Start Date"
+                            }
                         }
-                    }
-                    returnField.element.setCustomValidity(invalidMessage)
-                    returnField.element.reportValidity()
-                })
+                        returnField.element.setCustomValidity(invalidMessage)
+                        returnField.element.reportValidity()
+                    })
             })
         })
 
@@ -93,10 +92,9 @@ export function flightBooker(root: HtmlBuilder, initialStartDate: Temporal.Plain
                 .attrs({ type: "button" })
                 .text("Book")
                 .on("click", (_) => bookFlight(state))
-
-            effect(state, (state) => {
-                button.attr("disabled", !validate(state))
-            })
+                .effect(state, (state) => {
+                    button.attr("disabled", !validate(state))
+                })
         })
     })
 }

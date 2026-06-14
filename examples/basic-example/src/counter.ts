@@ -1,4 +1,4 @@
-import { effect, HtmlBuilder, reactive } from "../../../core/mod.ts"
+import { HtmlBuilder, reactive } from "../../../core/mod.ts"
 
 export function counter(root: HtmlBuilder, initialValue: number) {
     const state = reactive({ count: initialValue })
@@ -15,7 +15,7 @@ export function counter(root: HtmlBuilder, initialValue: number) {
         })
 
         tag("span", (countSpan) => {
-            effect(state, ({ count }) => countSpan.replaceHtml(`Count: <strong>${count}</strong>`))
+            countSpan.effect(state, ({ count }) => countSpan.replaceHtml(`Count: <strong>${count}</strong>`))
         })
 
         tag("button", (button) => {
