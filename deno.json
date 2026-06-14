@@ -1,5 +1,5 @@
 {
-    "workspace": ["./core", "./examples/basic-example"],
+    "workspace": ["./core", "./examples/7guis"],
     "compilerOptions": {
         "lib": ["ES2020", "DOM", "DOM.Iterable", "deno.ns"]
     },
