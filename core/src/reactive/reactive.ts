@@ -17,10 +17,9 @@ export type ReactiveTagged<TState extends Reactiveable> = TState & {
  * @return the given state, tagged with a reactive context
  */
 export function reactive<TState extends Reactiveable>(state: TState): ReactiveTagged<TState> {
-    // SAFETY: `as` is safe here because we've already proved state has a reactive context
     if (isReactive(state)) return state
 
-    // SAFETY: `as` is safe here because we're immediately adding the reactive context afterward
+    // SAFETY: `as` is safe here because we're adding the reactive tag below, before it'll be needed
     const reactiveState = state as ReactiveTagged<TState>
 
     const proxy = new Proxy<ReactiveTagged<TState>>(
