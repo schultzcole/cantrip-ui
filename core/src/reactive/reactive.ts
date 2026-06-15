@@ -1,4 +1,4 @@
-import type { Reactiveable, StateFunc } from "./reactive-types.ts"
+import type { Reactiveable, ReactiveableArray, ReactiveableRecord, StateFunc } from "./reactive-types.ts"
 import ReactiveContext from "./reactive-context.ts"
 
 const ReactiveTag = Symbol("ReactiveTag")
@@ -22,58 +22,19 @@ export function reactive<TState extends Reactiveable>(state: TState): ReactiveTa
     // SAFETY: `as` is safe here because we're adding the reactive tag below, before it'll be needed
     const reactiveState = state as ReactiveTagged<TState>
 
-    const proxy = new Proxy<ReactiveTagged<TState>>(
-        reactiveState,
-        {
-            get<TKey extends keyof TState>(state: ReactiveTagged<TState>, prop: TKey, proxy: TState): TState[TKey] {
-                let value = Reflect.get(state, prop, proxy)
-                if (prop === ReactiveTag) return value
-
-                const context = state[ReactiveTag]
-                if (isReactiveable(value)) {
-                    // If this child value is also an object, make it reactive too
-                    value = reactive(value)
-                    state[prop] = value
-                    // SAFETY: `as` is safe here because value must be reactiveable at this point
-                    getReactiveContext(value as Reactiveable)
-                        // SAFETY: `as` is safe here because the child context doesn't care what type the parent context is
-                        ?.registerParentContext(context as ReactiveContext<Reactiveable>, prop)
-                }
-
-                context.notifyPropGet(prop)
-
-                return value
-            },
-
-            set<TKey extends keyof TState>(
-                state: ReactiveTagged<TState>,
-                prop: TKey,
-                newValue: TState[TKey],
-                proxy: TState,
-            ): boolean {
-                const oldValue = state[prop]
-
-                const result = Reflect.set(state, prop, newValue, proxy)
-                if (prop === ReactiveTag) return result
-
-                if (oldValue !== newValue) {
-                    const context = state[ReactiveTag]
-
-                    // If old value has a reactive context, remove this reactive context as a parent
-                    if (isReactiveable(oldValue)) {
-                        // SAFETY: `as` is safe here because the child context doesn't care what type the parent context is
-                        getReactiveContext(oldValue)?.deregisterParentContext(context as ReactiveContext<Reactiveable>)
-                    }
-
-                    // Then notify this context that the property changed
-                    context.notifyPropSet(prop)
-                }
-                return result
-            },
-        },
-    )
+    let proxy: ReactiveTagged<TState>
+    if (isReactiveableRecord(reactiveState)) {
+        proxy = new Proxy(
+            // SAFETY: `as` is safe here because we've just verified that reactiveState is a ReactiveableRecord.
+            //         This cast widens the type to match the generic proxy handler
+            reactiveState as ReactiveTagged<ReactiveableRecord>,
+            recordProxyHandler,
+        ) as ReactiveTagged<TState> // SAFETY: `as` is safe here we're re-narrowing to the original type.
+    } else {
+        throw new Error("given state is not reactiveable")
+    }
     const context = new ReactiveContext<TState>(proxy)
-    Object.defineProperty(reactiveState, ReactiveTag, {
+    Object.defineProperty(state, ReactiveTag, {
         enumerable: false,
         configurable: false,
         writable: false,
@@ -81,6 +42,59 @@ export function reactive<TState extends Reactiveable>(state: TState): ReactiveTa
     })
 
     return proxy
+}
+
+const recordProxyHandler: ProxyHandler<ReactiveableRecord> = {
+    get(
+        state: ReactiveableRecord,
+        prop: PropertyKey,
+        proxy: ReactiveableRecord,
+    ): ReactiveableRecord[PropertyKey] {
+        let value = Reflect.get(state, prop, proxy)
+        if (prop === ReactiveTag) return value
+
+        // SAFETY: `!` is safe because the only way this proxy handler can be called is on a reactive object
+        const context = getReactiveContext(state)!
+        if (isReactiveable(value)) {
+            // If this child value is also an object, make it reactive too
+            value = reactive(value)
+            state[prop] = value
+            // SAFETY: `as` is safe here because value must be reactiveable at this point
+            getReactiveContext(value as Reactiveable)
+                // SAFETY: `as` is safe here because the child context doesn't care what type the parent context is
+                ?.registerParentContext(context as ReactiveContext<Reactiveable>, prop)
+        }
+
+        context.notifyPropGet(prop)
+
+        return value
+    },
+
+    set<TState extends ReactiveTagged<ReactiveableRecord>, TKey extends keyof TState>(
+        state: TState,
+        prop: TKey,
+        newValue: TState[TKey],
+        proxy: TState,
+    ): boolean {
+        const oldValue = state[prop]
+
+        const result = Reflect.set(state, prop, newValue, proxy)
+        if (prop === ReactiveTag) return result
+
+        if (oldValue !== newValue) {
+            const context = state[ReactiveTag]
+
+            // If old value has a reactive context, remove this reactive context as a parent
+            if (isReactiveable(oldValue)) {
+                // SAFETY: `as` is safe here because the child context doesn't care what type the parent context is
+                getReactiveContext(oldValue)?.deregisterParentContext(context as ReactiveContext<Reactiveable>)
+            }
+
+            // Then notify this context that the property changed
+            context.notifyPropSet(prop)
+        }
+        return result
+    },
 }
 
 /**
@@ -116,14 +130,22 @@ export function effect<TState extends Reactiveable>(
  * @param t
  */
 export function isReactiveable<T>(t: T): t is T & Reactiveable {
-    return isPojo(t)
+    return isReactiveableRecord(t) || isReactiveableArray(t)
 }
 
 /**
- * Returns whether the given t is a plain record
+ * Returns whether the given t is a reactiveable array
  * @param t
  */
-function isPojo<T>(t: T): t is T & Record<PropertyKey, unknown> {
+function isReactiveableArray<T>(t: T): t is T & ReactiveableArray {
+    return Array.isArray(t)
+}
+
+/**
+ * Returns whether the given t is a reactiveable record
+ * @param t
+ */
+function isReactiveableRecord<T>(t: T): t is T & ReactiveableRecord {
     return Boolean(typeof t === "object" && t && (t.constructor == null || t.constructor === Object))
 }
 
