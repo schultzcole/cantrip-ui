@@ -5,12 +5,12 @@ type EffectId = number & { __tag: EffectId }
 type Effect<TState extends Reactiveable> = {
     effectId: EffectId
     func: StateFunc<TState>
-    bindings?: Set<keyof TState>
+    bindings?: Set<string>
     children?: EffectId[]
 }
 
-type Trigger<TState extends Reactiveable> = {
-    prop: keyof TState
+type Trigger = {
+    prop: string
     sourceEffects: Set<EffectId | null>
 }
 
@@ -24,7 +24,7 @@ export default class ReactiveContext<TState extends Reactiveable> {
     private readonly _effectRegistry: Map<EffectId, Effect<TState>> = new Map()
     private readonly _rootEffects: EffectId[] = []
 
-    private readonly _triggerQueue: Trigger<TState>[] = []
+    private readonly _triggerQueue: Trigger[] = []
 
     constructor(private readonly proxiedState: ReactiveTagged<TState>) {}
 
@@ -101,7 +101,7 @@ export default class ReactiveContext<TState extends Reactiveable> {
      * If there are any current effects being executed, create a binding for that effect to this property.
      * @param prop
      */
-    notifyPropGet<TKey extends keyof TState>(prop: TKey): void {
+    notifyPropGet(prop: string): void {
         const currentEffect = this.topEffect
         if (!currentEffect) {
             // We're not capturing any effects, but maybe our parents are
@@ -122,7 +122,7 @@ export default class ReactiveContext<TState extends Reactiveable> {
      * Enqueues the change trigger, and there isn't a current effect being executed, "release" the change triggers
      * to call the effects bound to them.
      */
-    notifyPropSet<TKey extends keyof TState>(prop: TKey): void {
+    notifyPropSet(prop: string): void {
         for (const [parentContext, parentProp] of this._parentContexts) {
             parentContext.notifyPropSet(`${parentProp.toString()}.${prop.toString()}`)
         }
@@ -150,7 +150,7 @@ export default class ReactiveContext<TState extends Reactiveable> {
 
     /** Loops through the trigger queue, releasing each trigger in the order they were queued in */
     private releaseQueuedTriggers(): void {
-        const alreadyReleased = new Set<keyof TState>()
+        const alreadyReleased = new Set<string>()
         while (this._triggerQueue.length) {
             const trigger = this._triggerQueue[0]
 
@@ -164,7 +164,7 @@ export default class ReactiveContext<TState extends Reactiveable> {
     }
 
     /** "Releases" a trigger, calling effects that are bound to the trigger's property */
-    private releaseTrigger(trigger: Trigger<TState>): void {
+    private releaseTrigger(trigger: Trigger): void {
         const { prop, sourceEffects } = trigger
 
         // traverse the tree depth-first, searching for effects that are bound to this property

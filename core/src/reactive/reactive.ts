@@ -30,6 +30,12 @@ export function reactive<TState extends Reactiveable>(state: TState): ReactiveTa
             reactiveState as ReactiveTagged<ReactiveableRecord>,
             recordProxyHandler,
         ) as ReactiveTagged<TState> // SAFETY: `as` is safe here we're re-narrowing to the original type.
+    } else if (isReactiveableArray(reactiveState)) {
+        proxy = new Proxy(
+            // SAFETY: as is safe here because we've just verified that reactiveState is a ReactiveableArray.
+            reactiveState as unknown as ReactiveTagged<ReactiveableArray>,
+            arrayProxyHandler,
+        ) as unknown as ReactiveTagged<TState>
     } else {
         throw new Error("given state is not reactiveable")
     }
@@ -44,55 +50,77 @@ export function reactive<TState extends Reactiveable>(state: TState): ReactiveTa
     return proxy
 }
 
+function bindProp<TState extends Reactiveable>(state: TState, prop: keyof TState, value: TState[keyof TState]) {
+    // SAFETY: `!` is safe because the only way this proxy handler can be called is on a reactive object
+    const context = getReactiveContext(state)!
+    if (isReactiveable(value)) {
+        // If this child value is also an object, make it reactive too
+        value = reactive(value)
+        state[prop] = value
+        // SAFETY: `as` is safe here because value must be reactiveable at this point
+        getReactiveContext(value as Reactiveable)
+            // SAFETY: `as` is safe here because the child context doesn't care what type the parent context is
+            ?.registerParentContext(context as ReactiveContext<Reactiveable>, prop)
+    }
+
+    context.notifyPropGet(prop.toString())
+    return value
+}
+
+function notifyProp<TState extends Reactiveable>(
+    state: TState,
+    prop: keyof TState,
+    oldValue: TState[keyof TState],
+) {
+    const context = getReactiveContext(state)!
+    if (isReactiveable(oldValue)) {
+        // SAFETY: `as` is safe here because the child context doesn't care what type the parent context is
+        getReactiveContext(oldValue)?.deregisterParentContext(context as ReactiveContext<Reactiveable>)
+    }
+    context.notifyPropSet(prop.toString())
+}
+
 const recordProxyHandler: ProxyHandler<ReactiveableRecord> = {
-    get(
-        state: ReactiveableRecord,
-        prop: PropertyKey,
-        proxy: ReactiveableRecord,
-    ): ReactiveableRecord[PropertyKey] {
-        let value = Reflect.get(state, prop, proxy)
+    get(state, prop, proxy) {
+        const value = Reflect.get(state, prop, proxy)
         if (prop === ReactiveTag) return value
 
-        // SAFETY: `!` is safe because the only way this proxy handler can be called is on a reactive object
-        const context = getReactiveContext(state)!
-        if (isReactiveable(value)) {
-            // If this child value is also an object, make it reactive too
-            value = reactive(value)
-            state[prop] = value
-            // SAFETY: `as` is safe here because value must be reactiveable at this point
-            getReactiveContext(value as Reactiveable)
-                // SAFETY: `as` is safe here because the child context doesn't care what type the parent context is
-                ?.registerParentContext(context as ReactiveContext<Reactiveable>, prop)
-        }
-
-        context.notifyPropGet(prop)
-
-        return value
+        return bindProp(state, prop, value)
     },
 
-    set<TState extends ReactiveTagged<ReactiveableRecord>, TKey extends keyof TState>(
-        state: TState,
-        prop: TKey,
-        newValue: TState[TKey],
-        proxy: TState,
-    ): boolean {
+    set(state, prop, newValue, proxy) {
         const oldValue = state[prop]
-
         const result = Reflect.set(state, prop, newValue, proxy)
         if (prop === ReactiveTag) return result
 
         if (oldValue !== newValue) {
-            const context = state[ReactiveTag]
-
-            // If old value has a reactive context, remove this reactive context as a parent
-            if (isReactiveable(oldValue)) {
-                // SAFETY: `as` is safe here because the child context doesn't care what type the parent context is
-                getReactiveContext(oldValue)?.deregisterParentContext(context as ReactiveContext<Reactiveable>)
-            }
-
-            // Then notify this context that the property changed
-            context.notifyPropSet(prop)
+            notifyProp(state, prop, oldValue)
         }
+
+        return result
+    },
+}
+
+const arrayProxyHandler: ProxyHandler<ReactiveTagged<ReactiveableArray>> = {
+    get(state, prop, proxy) {
+        const value = Reflect.get(state, prop, proxy)
+        if (!Object.getOwnPropertyDescriptor(state, prop)?.writable) return value
+        if (prop === ReactiveTag) return value
+
+        return bindProp(state, prop as keyof typeof state, value)
+    },
+
+    set(state, prop, newValue, proxy) {
+        const oldValue = state[prop as keyof typeof state]
+        const result = Reflect.set(state, prop, newValue, proxy)
+        if (prop === ReactiveTag) return result
+
+        // for prop `length`, oldValue has already been updated by this point, so oldValue will always equal newValue.
+        // thus, if `length` is being set, always notify.
+        if (oldValue !== newValue || prop === "length") {
+            notifyProp(state, prop as keyof typeof state, oldValue)
+        }
+
         return result
     },
 }
