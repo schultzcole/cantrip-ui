@@ -1,6 +1,9 @@
 import { HtmlBuilder, reactive } from "../../../core/mod.ts"
 
-type State = { celsius: number | null; fahrenheit: number | null }
+type State = {
+    celsius: number | null
+    fahrenheit: number | null
+}
 export function temperatureConverter(root: HtmlBuilder, initialCelsius: number | null = null) {
     const state: State = reactive({
         celsius: initialCelsius,
@@ -10,25 +13,22 @@ export function temperatureConverter(root: HtmlBuilder, initialCelsius: number |
     root.effect(state, (state) => state.fahrenheit = cToF(state.celsius))
     root.effect(state, (state) => state.celsius = fToC(state.fahrenheit))
 
-    root.tag("div", (div) => {
-        div.attrs({ className: "flex flex-col flex-gap" })
-        div.component(temperatureField, state, "celsius")
-        div.component(temperatureField, state, "fahrenheit")
-    })
+    root.tag("div")
+        .attrs({ className: "flex flex-col flex-gap" })
+        .component(temperatureField, state, "celsius")
+        .component(temperatureField, state, "fahrenheit")
 }
 
 function temperatureField(root: HtmlBuilder, state: State, prop: "celsius" | "fahrenheit"): void {
     const fieldId = `${prop}-field`
+
     root.tag("div", (div) => {
-        div.tag("label", (label) => {
-            label.attrs({ htmlFor: fieldId }).replaceText(`${prop}: `)
-        })
-        div.tag("input", (input) => {
-            input
-                .attrs({ id: fieldId, type: "number", step: "any" })
-                .on("change", (evt) => state[prop] = evt.currentTarget.valueAsNumber)
-                .effect(state, (state) => input.attr("value", state[prop]))
-        })
+        div.tag("label").attrs({ htmlFor: fieldId }).text(`${prop}: `)
+
+        div.tag("input")
+            .attrs({ id: fieldId, type: "number", step: "any" })
+            .on("change", (evt) => state[prop] = evt.currentTarget.valueAsNumber)
+            .effect(state, (state, input) => input.attr("value", state[prop]))
     })
 }
 

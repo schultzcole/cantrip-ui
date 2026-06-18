@@ -11,11 +11,11 @@ export function selectOptions(root: HtmlBuilder<"select" | "optgroup">, options:
 
     for (const opt of optsArray) {
         if ("value" in opt) {
-            root.returnTag("option")
+            root.tag("option")
                 .attr("value", opt.value)
                 .text(opt.label)
         } else {
-            root.returnTag("optgroup")
+            root.tag("optgroup")
                 .attr("label", opt.label)
                 .component(selectOptions, opt.options)
         }

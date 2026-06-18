@@ -1,4 +1,4 @@
-import type { AnyData, AsyncComponent, Component, ComponentParameters, SyncComponent } from "../util/types.ts"
+import type { AnyData, Component, ComponentParameters } from "../util/types.ts"
 import { html } from "./html-tagged-template.ts"
 import type {
     CssAttrs,
@@ -267,37 +267,21 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
     }
 
     /**
-     * Append a child element with the given tag to this element,
-     * then pass an `HtmlBuilder` for the newly appended element to the given async function.
+     * Append a child element with the given tag to this element, then return an `HtmlBuilder` for the newly appended
+     * element.
      * @param childTag the tag to append
-     * @param func an async function to call with an `HtmlBuilder` for the appended element.
      */
-    tag<TChild extends HtmlTag>(childTag: TChild, func?: AsyncBuilderFunc<TChild>): Promise<this>
+    tag<TChild extends HtmlTag>(childTag: TChild): HtmlBuilder<TChild>
+
     /**
      * Append a child element with the given tag to this element,
      * then pass an `HtmlBuilder` for the newly appended element to the given function.
      * @param childTag the tag to append
      * @param func a function to call with an `HtmlBuilder` for the appended element.
      */
-    tag<TChild extends HtmlTag>(childTag: TChild, func?: SyncBuilderFunc<TChild>): this
-    tag<TChild extends HtmlTag>(childTag: TChild, func?: BuilderFunc<TChild>): Promise<this> | this {
-        const childBuilder = this.returnTag(childTag)
-        if (func) {
-            const funcPromise = func(childBuilder)
-            if (funcPromise instanceof Promise) {
-                return funcPromise.then(() => this)
-            }
-        }
-        return this
-    }
+    tag<TChild extends HtmlTag>(childTag: TChild, func: BuilderFunc<TChild>): this
 
-    /**
-     * Append a child element with the given tag to this element,
-     * then return an `HtmlBuilder` for the newly appended element.
-     * @param childTag the tag to append
-     * @return a builder for the appended element
-     */
-    returnTag<TChild extends HtmlTag>(childTag: TChild): HtmlBuilder<TChild> {
+    tag<TChild extends HtmlTag>(childTag: TChild, func?: BuilderFunc<TChild>): HtmlBuilder<TChild> | this {
         const childBuilder = new (this.constructor as typeof HtmlBuilder)(childTag, this.document)
 
         const child = childBuilder.element instanceof HTMLTemplateElement
@@ -305,6 +289,10 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
             : childBuilder.element
         this.appendChild(child)
 
+        if (func) {
+            func(childBuilder)
+            return this
+        }
         return childBuilder
     }
 
@@ -313,19 +301,8 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
      * @param comp - the async component to call
      * @param args - args for the component
      */
-    component<TComp extends AsyncComponent<this>>(comp: TComp, ...args: ComponentParameters<TComp>): Promise<this>
-    /**
-     * Calls the given async component function on this HtmlBuilder.
-     * @param comp - the async component to call
-     * @param args - args for the component
-     */
-    component<TComp extends SyncComponent<this>>(comp: TComp, ...args: ComponentParameters<TComp>): this
-
-    component<TComp extends Component<this>>(comp: TComp, ...args: ComponentParameters<TComp>): Promise<this> | this {
-        const compPromise = comp(this, ...args)
-        if (compPromise instanceof Promise) {
-            return compPromise.then(() => this)
-        }
+    component<TComp extends Component<this>>(comp: TComp, ...args: ComponentParameters<TComp>): this {
+        const _ = comp(this, ...args)
         return this
     }
 
@@ -455,21 +432,12 @@ export class DetachedBuilderError extends Error {
     }
 }
 
-export type SyncBuilderFunc<TTag extends HtmlTag> = (builder: HtmlBuilder<TTag>) => void
-export type AsyncBuilderFunc<TTag extends HtmlTag> = (builder: HtmlBuilder<TTag>) => Promise<void>
-export type BuilderFunc<TTag extends HtmlTag> = SyncBuilderFunc<TTag> | AsyncBuilderFunc<TTag>
+export type BuilderFunc<TTag extends HtmlTag> = (builder: HtmlBuilder<TTag>) => unknown
 
-export type SyncEffectBuilderFunc<TState extends Reactiveable, TTag extends HtmlTag> = (
+export type EffectBuilderFunc<TState extends Reactiveable, TTag extends HtmlTag> = (
     state: TState,
     builder: HtmlBuilder<TTag>,
-) => void
-export type AsyncEffectBuilderFunc<TState extends Reactiveable, TTag extends HtmlTag> = (
-    state: TState,
-    builder: HtmlBuilder<TTag>,
-) => Promise<void>
-export type EffectBuilderFunc<TState extends Reactiveable, TTag extends HtmlTag> =
-    | SyncEffectBuilderFunc<TState, TTag>
-    | AsyncEffectBuilderFunc<TState, TTag>
+) => unknown
 
 function stringify(value: AnyData): string | undefined {
     if (typeof value === "object") {

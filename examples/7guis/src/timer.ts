@@ -24,13 +24,15 @@ export function timer(root: HtmlBuilder): void {
         grid.tag("div", (row) => {
             row.attrs({ className: "timer-grid-row" })
 
-            row.returnTag("label")
+            row.tag("label")
                 .attrs({ htmlFor: "timer-progress" })
                 .text("Elapsed Time:")
-            row.returnTag("progress")
+
+            row.tag("progress")
                 .attrs({ id: "timer-progress" })
                 .effect(state, (state, progress) => progress.attr("value", state.elapsed / state.duration))
-            row.returnTag("span")
+
+            row.tag("span")
                 .attrs({ className: "right-align" })
                 .effect(state, (state, label) => label.replaceText(`${state.elapsed.toFixed(1)}s`))
         })
@@ -39,24 +41,25 @@ export function timer(root: HtmlBuilder): void {
         grid.tag("div", (row) => {
             row.attrs({ className: "timer-grid-row" })
 
-            row.returnTag("label")
+            row.tag("label")
                 .attrs({ htmlFor: "duration-range" })
                 .text("Duration:")
-            row.returnTag("input")
+
+            row.tag("input")
                 .attrs({ id: "duration-range", type: "range", min: 3, max: 30 })
                 .on("input", (evt) => state.duration = evt.currentTarget.valueAsNumber)
-                .effect(state, (state, rangeField) => rangeField.attr("value", state.duration))
+                .effect(state, (state, field) => field.attr("value", state.duration))
 
-            row.returnTag("span")
+            row.tag("span")
                 .attrs({ className: "right-align" })
-                .effect(state, (state, label) => label.replaceText(`${state.duration}s`))
+                .effect(state, (state, label) => label.replaceText(`${state.duration.toFixed(1)}s`))
         })
 
         // Reset
         grid.tag("div", (row) => {
             row.attrs({ className: "timer-grid-row" })
 
-            row.returnTag("button")
+            row.tag("button")
                 .style({ alignSelf: "start" })
                 .text("Reset")
                 .on("click", (_) => state.elapsed = 0)

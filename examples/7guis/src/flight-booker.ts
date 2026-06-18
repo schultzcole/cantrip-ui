@@ -32,11 +32,10 @@ export function flightBooker(root: HtmlBuilder, initialStartDate: Temporal.Plain
     })
 
     root.tag("form", (form) => {
-        form
-            .attrs({ className: "flex flex-col flex-gap flex-align-center" })
+        form.attrs({ className: "flex flex-col flex-gap flex-align-center" })
 
         // Mode select
-        form.returnTag("select")
+        form.tag("select")
             .attrs({ value: state.mode })
             .style({ alignSelf: "stretch" })
             .component(selectOptions, MODES)
@@ -44,55 +43,51 @@ export function flightBooker(root: HtmlBuilder, initialStartDate: Temporal.Plain
 
         // Start date
         form.tag("div", (div) => {
-            div.returnTag("label").attrs({ htmlFor: "start-date" }).text("Start Date:")
-            div.tag("input", (startField) => {
-                startField
-                    .attrs({ id: "start-date", type: "date" })
-                    .effect(state, (state) => startField.attr("value", state.startDate))
-                    .on("change", (evt) => state.startDate = evt.currentTarget.value)
-            })
+            div.tag("label").attrs({ htmlFor: "start-date" }).text("Start Date:")
+
+            div.tag("input")
+                .attrs({ id: "start-date", type: "date" })
+                .effect(state, (state, input) => input.attr("value", state.startDate))
+                .on("change", (evt) => state.startDate = evt.currentTarget.value)
         })
 
         // Return date
         form.tag("div", (div) => {
-            div.returnTag("label").attrs({ htmlFor: "return-date" }).text("Return Date:")
+            div.tag("label").attrs({ htmlFor: "return-date" }).text("Return Date:")
 
-            div.tag("input", (returnField) => {
-                returnField
-                    .attrs({ id: "return-date", type: "date" })
-                    .effect(state, (state) => {
-                        returnField.attrs({
-                            disabled: state.mode !== "RETURN",
-                            value: state.endDate,
-                        })
-
-                        let invalidMessage: string = ""
-                        const startDate = parseDate(state.startDate)
-                        if (!startDate) {
-                            return
-                        } else if (state.endDate) {
-                            const endDate = parseDate(state.endDate)
-                            if (!endDate) {
-                                invalidMessage = "Return Date is not valid"
-                            } else if (Temporal.PlainDate.compare(endDate, startDate) < 0) {
-                                invalidMessage = "Return Date must be after Start Date"
-                            }
-                        }
-                        returnField.element.setCustomValidity(invalidMessage)
-                        returnField.element.reportValidity()
+            div.tag("input")
+                .attrs({ id: "return-date", type: "date" })
+                .effect(state, (state, input) => {
+                    input.attrs({
+                        disabled: state.mode !== "RETURN",
+                        value: state.endDate,
                     })
-                    .on("change", (evt) => state.endDate = evt.currentTarget.value)
-            })
+
+                    let invalidMessage: string = ""
+                    const startDate = parseDate(state.startDate)
+                    if (!startDate) {
+                        return
+                    } else if (state.endDate) {
+                        const endDate = parseDate(state.endDate)
+                        if (!endDate) {
+                            invalidMessage = "Return Date is not valid"
+                        } else if (Temporal.PlainDate.compare(endDate, startDate) < 0) {
+                            invalidMessage = "Return Date must be after Start Date"
+                        }
+                    }
+
+                    input.element.setCustomValidity(invalidMessage)
+                    input.element.reportValidity()
+                })
+                .on("change", (evt) => state.endDate = evt.currentTarget.value)
         })
 
         // Submit button
-        form.tag("button", (button) => {
-            button
-                .attrs({ type: "button" })
-                .text("Book")
-                .effect(state, (state) => button.attr("disabled", !validate(state)))
-                .on("click", (_) => bookFlight(state))
-        })
+        form.tag("button")
+            .attrs({ type: "button" })
+            .text("Book")
+            .effect(state, (state, button) => button.attr("disabled", !validate(state)))
+            .on("click", (_) => bookFlight(state))
     })
 }
 
