@@ -1,4 +1,11 @@
-import type { Reactiveable, ReactiveableArray, ReactiveableRecord, StateFunc } from "./reactive-types.ts"
+import type {
+    AsyncStateFunc,
+    Reactiveable,
+    ReactiveableArray,
+    ReactiveableRecord,
+    StateFunc,
+    SyncStateFunc,
+} from "./reactive-types.ts"
 import ReactiveContext from "./reactive-context.ts"
 
 const ReactiveTag = Symbol("ReactiveTag")
@@ -10,6 +17,11 @@ export type ReactiveTagged<TState extends Reactiveable> = TState & {
     [ReactiveTag]: ReactiveContext<TState>
 }
 
+export type ReactiveTaggedWithContext<TState extends Reactiveable> = {
+    state: ReactiveTagged<TState>
+    context: ReactiveContext<TState>
+}
+
 /**
  * Converts the given state object to a reactive state object. When the object is mutated, {@link effect}s bound to the
  * mutated properties will be re-executed.
@@ -17,7 +29,18 @@ export type ReactiveTagged<TState extends Reactiveable> = TState & {
  * @return the given state, tagged with a reactive context
  */
 export function reactive<TState extends Reactiveable>(state: TState): ReactiveTagged<TState> {
-    if (isReactive(state)) return state
+    return reactiveWithContext(state).state
+}
+
+/**
+ * Converts the given state object to a reactive state object. When the object is mutated, {@link effect}s bound to the
+ * mutated properties will be re-executed.
+ * @param state the state object that should become reactive
+ * @return an object containing the given state tagged with a reactive context as well as the context itself.
+ */
+export function reactiveWithContext<TState extends Reactiveable>(state: TState): ReactiveTaggedWithContext<TState> {
+    const existingContext = getReactiveContext(state)
+    if (existingContext) return { state: state as ReactiveTagged<TState>, context: existingContext }
 
     // SAFETY: `as` is safe here because we're adding the reactive tag below, before it'll be needed
     const reactiveState = state as ReactiveTagged<TState>
@@ -47,7 +70,7 @@ export function reactive<TState extends Reactiveable>(state: TState): ReactiveTa
         value: context,
     })
 
-    return proxy
+    return { state: proxy, context }
 }
 
 function bindProp<TState extends Reactiveable>(state: TState, prop: keyof TState, value: TState[keyof TState]) {
@@ -134,6 +157,19 @@ export type EffectConfig = {
 }
 
 /**
+ * Registers an async effect with the given state object. When properties of the state object that are used within this effect
+ * are mutated, the effect will re-execute with the updated values.
+ * @param state the state over which this effect is reactive
+ * @param func the async function to execute in response to mutations
+ * @param config configuration for the effect
+ */
+export function effect<TState extends Reactiveable>(
+    state: TState | ReactiveTagged<TState>,
+    func: AsyncStateFunc<TState>,
+    config?: EffectConfig,
+): Promise<void>
+
+/**
  * Registers an effect with the given state object. When properties of the state object that are used within this effect
  * are mutated, the effect will re-execute with the updated values.
  * @param state the state over which this effect is reactive
@@ -142,14 +178,19 @@ export type EffectConfig = {
  */
 export function effect<TState extends Reactiveable>(
     state: TState | ReactiveTagged<TState>,
+    func: SyncStateFunc<TState>,
+    config?: EffectConfig,
+): void
+
+export function effect<TState extends Reactiveable>(
+    state: TState | ReactiveTagged<TState>,
     func: StateFunc<TState>,
     config?: EffectConfig,
-): void {
+): Promise<void> | void {
     const context = Reflect.get(state, ReactiveTag)
-    if (context instanceof ReactiveContext) {
-        context.capture(func, config)
-    } else {
-        func(state)
+    const promise = (context instanceof ReactiveContext) ? context.capture(func, config) : func(state)
+    if (promise) {
+        return promise
     }
 }
 

@@ -1,4 +1,4 @@
-import type { AnyData, Component, ComponentParameters } from "../util/types.ts"
+import type { AnyData, AsyncComponent, Component, ComponentParameters, SyncComponent } from "../util/types.ts"
 import { html } from "./html-tagged-template.ts"
 import type {
     CssAttrs,
@@ -60,9 +60,22 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
      * @param element
      * @param func
      */
-    static build<TElement extends HTMLElement>(element: TElement, func: BuilderFunc<"template">): TElement {
+    static build<TElement extends HTMLElement>(element: TElement, func: SyncBuilderFunc<"template">): TElement
+    static build<TElement extends HTMLElement>(element: TElement, func: AsyncBuilderFunc<"template">): Promise<TElement>
+    static build<TElement extends HTMLElement>(
+        element: TElement,
+        func: BuilderFunc<"template">,
+    ): Promise<TElement> | TElement {
         const builder = new HtmlBuilder("template")
-        func(builder)
+        const funcPromise = func(builder)
+
+        if (funcPromise) {
+            return funcPromise.then(() => {
+                builder.mount(element)
+                return element
+            })
+        }
+
         builder.mount(element)
         return element
     }
@@ -264,14 +277,25 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
 
     /**
      * Append a child element with the given tag to this element,
+     * then pass an `HtmlBuilder` for the newly appended element to the given async function.
+     * @param childTag the tag to append
+     * @param func an async function to call with an `HtmlBuilder` for the appended element.
+     */
+    tag<TChild extends HtmlTag>(childTag: TChild, func?: AsyncBuilderFunc<TChild>): Promise<this>
+    /**
+     * Append a child element with the given tag to this element,
      * then pass an `HtmlBuilder` for the newly appended element to the given function.
      * @param childTag the tag to append
      * @param func a function to call with an `HtmlBuilder` for the appended element.
      */
-    tag<TChild extends HtmlTag>(childTag: TChild, func?: BuilderFunc<TChild>): this {
+    tag<TChild extends HtmlTag>(childTag: TChild, func?: SyncBuilderFunc<TChild>): this
+    tag<TChild extends HtmlTag>(childTag: TChild, func?: BuilderFunc<TChild>): Promise<this> | this {
         const childBuilder = this.returnTag(childTag)
         if (func) {
-            func(childBuilder)
+            const funcPromise = func(childBuilder)
+            if (funcPromise instanceof Promise) {
+                return funcPromise.then(() => this)
+            }
         }
         return this
     }
@@ -294,20 +318,46 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
     }
 
     /**
-     * Calls the given component function on this HtmlBuilder.
-     * @param comp - the component to call
+     * Calls the given async component function on this HtmlBuilder.
+     * @param comp - the async component to call
      * @param args - args for the component
      */
-    component<TComp extends Component<this>>(
-        comp: TComp,
-        ...args: ComponentParameters<TComp>
-    ): this {
-        comp(this, ...args)
+    component<TComp extends AsyncComponent<this>>(comp: TComp, ...args: ComponentParameters<TComp>): Promise<this>
+    /**
+     * Calls the given async component function on this HtmlBuilder.
+     * @param comp - the async component to call
+     * @param args - args for the component
+     */
+    component<TComp extends SyncComponent<this>>(comp: TComp, ...args: ComponentParameters<TComp>): this
+
+    component<TComp extends Component<this>>(comp: TComp, ...args: ComponentParameters<TComp>): Promise<this> | this {
+        const compPromise = comp(this, ...args)
+        if (compPromise instanceof Promise) {
+            return compPromise.then(() => this)
+        }
         return this
     }
 
     /**
-     * Binds a reactive effect to this element. Unlike {@link domEffect}, the effect being executed does not replace
+     * Binds an async reactive effect to this element. Unlike {@link replaceEffect}, the effect being executed does not
+     * replace this element's contents.
+     *
+     * If this element is detached from the DOM, the effect will be unbound and won't execute again.
+     *
+     * See documentation for the {@link effect} function.
+     *
+     * @param state the state over which this effect will be reactive
+     * @param func the async effect function to execute
+     * @param config configuration for the effect
+     */
+    effect<TState extends Reactiveable>(
+        state: TState,
+        func: AsyncEffectBuilderFunc<TState, TTag>,
+        config?: EffectConfig,
+    ): Promise<this>
+
+    /**
+     * Binds a reactive effect to this element. Unlike {@link replaceEffect}, the effect being executed does not replace
      * this element's contents.
      *
      * If this element is detached from the DOM, the effect will be unbound and won't execute again.
@@ -315,14 +365,20 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
      * See documentation for the {@link effect} function.
      *
      * @param state the state over which this effect will be reactive
-     * @param func the function to execute
+     * @param func the effect function to execute
      * @param config configuration for the effect
      */
     effect<TState extends Reactiveable>(
         state: TState,
+        func: SyncEffectBuilderFunc<TState, TTag>,
+        config?: EffectConfig,
+    ): this
+
+    effect<TState extends Reactiveable>(
+        state: TState,
         func: EffectBuilderFunc<TState, TTag>,
         config?: EffectConfig,
-    ): this {
+    ): Promise<this> | this {
         this.checkDetached(this._element)
 
         config ??= {}
@@ -332,12 +388,32 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
             config.abortSignal = this._abortController.signal
         }
 
-        effect(state, (state) => {
-            func(state, this)
-        }, config)
+        // noinspection JSVoidFunctionReturnValueUsed
+        const promise = effect(state, (state) => func(state, this), config) as Promise<void> | void
+        if (promise instanceof Promise) {
+            return promise.then(() => this)
+        }
 
         return this
     }
+
+    /**
+     * Creates a new layout-transparent element bound to an async reactive effect. When the effect is executed, DOM contents
+     * within the element are replaced by the new execution.
+     *
+     * If this element is detached from the DOM, the effect will be unbound and won't execute again.
+     *
+     * See documentation for the {@link effect} function.
+     *
+     * @param state the state over which this effect will be reactive
+     * @param func the async effect function to execute
+     * @param config configuration for the effect
+     */
+    replaceEffect<TState extends Reactiveable>(
+        state: TState,
+        func: AsyncEffectBuilderFunc<TState, "template">,
+        config?: EffectConfig,
+    ): Promise<this>
 
     /**
      * Creates a new layout-transparent element bound to a reactive effect. When the effect is executed, DOM contents
@@ -351,11 +427,17 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
      * @param func the function to execute
      * @param config configuration for the effect
      */
-    domEffect<TState extends Reactiveable>(
+    replaceEffect<TState extends Reactiveable>(
+        state: TState,
+        func: SyncEffectBuilderFunc<TState, "template">,
+        config?: EffectConfig,
+    ): this
+
+    replaceEffect<TState extends Reactiveable>(
         state: TState,
         func: EffectBuilderFunc<TState, "template">,
         config?: EffectConfig,
-    ): this {
+    ): Promise<this> | this {
         const element = this.checkDetached(this._element)
         const container = element.appendChild(this.document.createElement("div"))
         container.style.display = "contents" // makes it so this wrapper div doesn't affect layout.
@@ -366,18 +448,18 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
         // container, not the reactive container itself)
         const innerBuilder = new HtmlBuilder("template", this.document)
 
-        config ??= {}
-        if (config.abortSignal) {
-            config.abortSignal = AbortSignal.any([config.abortSignal, this._abortController.signal])
-        } else {
-            config.abortSignal = this._abortController.signal
-        }
-
-        effect(state, (state) => {
+        const outerPromise = innerBuilder.effect(state, (state, innerBuilder) => {
             innerBuilder.element.content.replaceChildren()
-            func(state, innerBuilder)
+            const innerPromise = func(state, innerBuilder)
+            if (innerPromise instanceof Promise) {
+                return innerPromise.then(() => container.replaceChildren(innerBuilder.element.content))
+            }
             container.replaceChildren(innerBuilder.element.content)
-        }, config)
+        }, config) as Promise<unknown> | unknown
+
+        if (outerPromise instanceof Promise) {
+            return outerPromise.then(() => this)
+        }
 
         return this
     }
@@ -432,28 +514,21 @@ export class DetachedBuilderError extends Error {
     }
 }
 
-/**
- * Interface for the optional second parameter of a builder func. This interface includes methods that are useful
- * to call without needing to call them directly from the builder as a receiver, and are pre-bound to the builder
- * object to allow for destructuring.
- */
-export interface BuilderApi<TTag extends HtmlTag> {
-    tag<TChild extends HtmlTag>(childTag: TChild, func?: BuilderFunc<TChild>): void
+export type SyncBuilderFunc<TTag extends HtmlTag> = (builder: HtmlBuilder<TTag>) => void
+export type AsyncBuilderFunc<TTag extends HtmlTag> = (builder: HtmlBuilder<TTag>) => Promise<void>
+export type BuilderFunc<TTag extends HtmlTag> = SyncBuilderFunc<TTag> | AsyncBuilderFunc<TTag>
 
-    returnTag<TChild extends HtmlTag>(childTag: TChild): HtmlBuilder<TChild>
-
-    component<TComp extends Component<HtmlBuilder<TTag>>>(comp: TComp, ...args: ComponentParameters<TComp>): void
-
-    effect<TState extends Reactiveable>(state: TState, func: EffectBuilderFunc<TState, TTag>): void
-
-    domEffect<TState extends Reactiveable>(state: TState, func: EffectBuilderFunc<TState, "template">): void
-}
-
-export type BuilderFunc<TTag extends HtmlTag> = (builder: HtmlBuilder<TTag>) => void
-export type EffectBuilderFunc<TState extends Reactiveable, TTag extends HtmlTag> = (
+export type SyncEffectBuilderFunc<TState extends Reactiveable, TTag extends HtmlTag> = (
     state: TState,
     builder: HtmlBuilder<TTag>,
 ) => void
+export type AsyncEffectBuilderFunc<TState extends Reactiveable, TTag extends HtmlTag> = (
+    state: TState,
+    builder: HtmlBuilder<TTag>,
+) => Promise<void>
+export type EffectBuilderFunc<TState extends Reactiveable, TTag extends HtmlTag> =
+    | SyncEffectBuilderFunc<TState, TTag>
+    | AsyncEffectBuilderFunc<TState, TTag>
 
 function stringify(value: AnyData): string | undefined {
     if (typeof value === "object") {

@@ -26,6 +26,8 @@ export default class ReactiveContext<TState extends Reactiveable> {
 
     private readonly _triggerQueue: Trigger[] = []
 
+    private _triggerReleasePromise: Promise<void> | null = null
+
     constructor(private readonly proxiedState: ReactiveTagged<TState>) {}
 
     registerParentContext(parentContext: ParentContext, parentProp: PropertyKey): void {
@@ -45,28 +47,41 @@ export default class ReactiveContext<TState extends Reactiveable> {
         return this._effectRegistry.get(this._effectStack[this._effectStack.length - 1])
     }
 
+    public get triggerReleasePromise(): Promise<void> | null {
+        return this._triggerReleasePromise
+    }
+
     /**
      * Captures an effect, recording any bindings between that effect and state properties used during that effect's
      * execution.
      */
-    capture(func: StateFunc<TState>, config?: EffectConfig): void {
+    capture(func: StateFunc<TState>, config?: EffectConfig): Promise<void> | void {
         config?.abortSignal?.throwIfAborted()
 
         const parentEffect = this.topEffect
 
         if (!parentEffect) {
-            // If our stack is empty, but a parent context's stack is not empty, capture this effect on the parent
-            let foundParent = false
-            for (const [parentContext, parentProp] of this._parentContexts) {
-                // SAFETY: `as` is safe because by definition, the parent state must be an object that has a property
-                //         called parentProp with the type TState.
+            const foundParent = this._parentContexts.entries().reduce((foundParent, [parentContext, parentProp]) => {
                 const typedParentContext = parentContext as ReactiveContext<{ [key: typeof parentProp]: TState }>
                 if (!typedParentContext.emptyStack) {
-                    typedParentContext.capture((parentState) => func(parentState[parentProp]))
-                    foundParent = true
+                    const innerPromise = typedParentContext.capture((parentState) => func(parentState[parentProp]))
+                    if (innerPromise instanceof Promise) {
+                        return innerPromise.then(() => true)
+                    }
+                    return true
                 }
+                return foundParent
+            }, false as Promise<boolean> | boolean)
+
+            if (foundParent instanceof Promise) {
+                // If it's a promise, a parent *must* have executed (async), so return
+                return foundParent.then()
+            } else if (foundParent === true) {
+                // If it's true, a parent executed (sync)
+                return
+            } else {
+                // It's false, so a parent didn't execute. We execute instead.
             }
-            if (foundParent) return
         }
 
         // SAFETY: `as` is safe because EffectId is an illusion anyway
@@ -84,7 +99,16 @@ export default class ReactiveContext<TState extends Reactiveable> {
 
         this._effectStack.push(effect.effectId)
         try {
-            func(this.proxiedState)
+            const funcPromise = func(this.proxiedState)
+            if (funcPromise instanceof Promise) {
+                return funcPromise.then(() => {
+                    if (!parentEffect) {
+                        this.startReleaseQueuedTriggers()
+                    }
+                }).finally(() => {
+                    this._effectStack.pop()
+                })
+            }
         } finally {
             this._effectStack.pop()
         }
@@ -92,7 +116,7 @@ export default class ReactiveContext<TState extends Reactiveable> {
         // If there's no parent effect, there must not be anything in the effect stack now,
         // so release the triggers in the queue
         if (!parentEffect) {
-            this.releaseQueuedTriggers()
+            this.startReleaseQueuedTriggers()
         }
     }
 
@@ -144,19 +168,27 @@ export default class ReactiveContext<TState extends Reactiveable> {
 
         // If there's no current effect, the effect stack is empty, so release the triggers in the queue
         if (!currentEffect) {
-            this.releaseQueuedTriggers()
+            this.startReleaseQueuedTriggers()
         }
     }
 
+    private startReleaseQueuedTriggers(): void {
+        if (!this._triggerQueue.length) return
+        this._triggerReleasePromise ??= this.releaseQueuedTriggers()
+            .finally(() => this._triggerReleasePromise = null)
+    }
+
     /** Loops through the trigger queue, releasing each trigger in the order they were queued in */
-    private releaseQueuedTriggers(): void {
+    private async releaseQueuedTriggers(): Promise<void> {
+        if (!this._triggerQueue.length) return
+
         const alreadyReleased = new Set<string>()
         while (this._triggerQueue.length) {
             const trigger = this._triggerQueue[0]
 
             // infinite loop mitigation: only release this trigger if we haven't already released one for the same prop.
             if (!alreadyReleased.has(trigger.prop)) {
-                this.releaseTrigger(trigger)
+                await this.releaseTrigger(trigger)
                 alreadyReleased.add(trigger.prop)
             }
             this._triggerQueue.shift()
@@ -164,11 +196,11 @@ export default class ReactiveContext<TState extends Reactiveable> {
     }
 
     /** "Releases" a trigger, calling effects that are bound to the trigger's property */
-    private releaseTrigger(trigger: Trigger): void {
+    private async releaseTrigger(trigger: Trigger): Promise<void> {
         const { prop, sourceEffects } = trigger
 
         // traverse the tree depth-first, searching for effects that are bound to this property
-        const inner = (effectIds: Iterable<EffectId>) => {
+        const inner = async (effectIds: Iterable<EffectId>) => {
             for (const effectId of effectIds) {
                 const effect = this._effectRegistry.get(effectId)
                 if (!effect) throw new Error(`Effect ${effectId} could not be found in the registry`)
@@ -193,10 +225,10 @@ export default class ReactiveContext<TState extends Reactiveable> {
 
                         // directly call the func instead of using `capture` because we don't need to re-register
                         // this effect and we're managing the effect stack here.
-                        effect.func(this.proxiedState)
+                        await effect.func(this.proxiedState)
                     } else if (effect.children?.length) {
                         // this effect is not bound to this property, but it has children, so check them.
-                        inner(effect.children)
+                        await inner(effect.children)
                     }
                 } finally {
                     this._effectStack.pop()
@@ -204,7 +236,7 @@ export default class ReactiveContext<TState extends Reactiveable> {
             }
         }
 
-        inner(this._rootEffects)
+        await inner(this._rootEffects)
     }
 
     private abortEffect(effectId: EffectId): void {

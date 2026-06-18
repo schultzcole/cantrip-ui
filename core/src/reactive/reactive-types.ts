@@ -5,4 +5,6 @@ export type Reactiveable =
     | ReactiveableRecord
     | ReactiveableArray
 
-export type StateFunc<TState extends Reactiveable> = (state: TState) => void
+export type SyncStateFunc<TState extends Reactiveable> = (state: TState) => void
+export type AsyncStateFunc<TState extends Reactiveable> = (state: TState) => Promise<void>
+export type StateFunc<TState extends Reactiveable> = SyncStateFunc<TState> | AsyncStateFunc<TState>
