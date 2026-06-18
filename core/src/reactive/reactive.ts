@@ -1,11 +1,4 @@
-import type {
-    AsyncStateFunc,
-    Reactiveable,
-    ReactiveableArray,
-    ReactiveableRecord,
-    StateFunc,
-    SyncStateFunc,
-} from "./reactive-types.ts"
+import type { Reactiveable, ReactiveableArray, ReactiveableRecord, StateFunc } from "./reactive-types.ts"
 import ReactiveContext from "./reactive-context.ts"
 
 const ReactiveTag = Symbol("ReactiveTag")
@@ -157,19 +150,6 @@ export type EffectConfig = {
 }
 
 /**
- * Registers an async effect with the given state object. When properties of the state object that are used within this effect
- * are mutated, the effect will re-execute with the updated values.
- * @param state the state over which this effect is reactive
- * @param func the async function to execute in response to mutations
- * @param config configuration for the effect
- */
-export function effect<TState extends Reactiveable>(
-    state: TState | ReactiveTagged<TState>,
-    func: AsyncStateFunc<TState>,
-    config?: EffectConfig,
-): Promise<void>
-
-/**
  * Registers an effect with the given state object. When properties of the state object that are used within this effect
  * are mutated, the effect will re-execute with the updated values.
  * @param state the state over which this effect is reactive
@@ -178,19 +158,14 @@ export function effect<TState extends Reactiveable>(
  */
 export function effect<TState extends Reactiveable>(
     state: TState | ReactiveTagged<TState>,
-    func: SyncStateFunc<TState>,
-    config?: EffectConfig,
-): void
-
-export function effect<TState extends Reactiveable>(
-    state: TState | ReactiveTagged<TState>,
     func: StateFunc<TState>,
     config?: EffectConfig,
-): Promise<void> | void {
+): void {
     const context = Reflect.get(state, ReactiveTag)
-    const promise = (context instanceof ReactiveContext) ? context.capture(func, config) : func(state)
-    if (promise) {
-        return promise
+    if (context instanceof ReactiveContext) {
+        context.capture(func, config)
+    } else {
+        const _ = func(state)
     }
 }
 

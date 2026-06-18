@@ -60,21 +60,12 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
      * @param element
      * @param func
      */
-    static build<TElement extends HTMLElement>(element: TElement, func: SyncBuilderFunc<"template">): TElement
-    static build<TElement extends HTMLElement>(element: TElement, func: AsyncBuilderFunc<"template">): Promise<TElement>
     static build<TElement extends HTMLElement>(
         element: TElement,
         func: BuilderFunc<"template">,
-    ): Promise<TElement> | TElement {
+    ): TElement {
         const builder = new HtmlBuilder("template")
-        const funcPromise = func(builder)
-
-        if (funcPromise) {
-            return funcPromise.then(() => {
-                builder.mount(element)
-                return element
-            })
-        }
+        const _ = func(builder)
 
         builder.mount(element)
         return element
@@ -339,24 +330,6 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
     }
 
     /**
-     * Binds an async reactive effect to this element. Unlike {@link replaceEffect}, the effect being executed does not
-     * replace this element's contents.
-     *
-     * If this element is detached from the DOM, the effect will be unbound and won't execute again.
-     *
-     * See documentation for the {@link effect} function.
-     *
-     * @param state the state over which this effect will be reactive
-     * @param func the async effect function to execute
-     * @param config configuration for the effect
-     */
-    effect<TState extends Reactiveable>(
-        state: TState,
-        func: AsyncEffectBuilderFunc<TState, TTag>,
-        config?: EffectConfig,
-    ): Promise<this>
-
-    /**
      * Binds a reactive effect to this element. Unlike {@link replaceEffect}, the effect being executed does not replace
      * this element's contents.
      *
@@ -370,15 +343,9 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
      */
     effect<TState extends Reactiveable>(
         state: TState,
-        func: SyncEffectBuilderFunc<TState, TTag>,
-        config?: EffectConfig,
-    ): this
-
-    effect<TState extends Reactiveable>(
-        state: TState,
         func: EffectBuilderFunc<TState, TTag>,
         config?: EffectConfig,
-    ): Promise<this> | this {
+    ): this {
         this.checkDetached(this._element)
 
         config ??= {}
@@ -388,32 +355,12 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
             config.abortSignal = this._abortController.signal
         }
 
-        // noinspection JSVoidFunctionReturnValueUsed
-        const promise = effect(state, (state) => func(state, this), config) as Promise<void> | void
-        if (promise instanceof Promise) {
-            return promise.then(() => this)
-        }
+        effect(state, (state) => {
+            const _ = func(state, this)
+        }, config)
 
         return this
     }
-
-    /**
-     * Creates a new layout-transparent element bound to an async reactive effect. When the effect is executed, DOM contents
-     * within the element are replaced by the new execution.
-     *
-     * If this element is detached from the DOM, the effect will be unbound and won't execute again.
-     *
-     * See documentation for the {@link effect} function.
-     *
-     * @param state the state over which this effect will be reactive
-     * @param func the async effect function to execute
-     * @param config configuration for the effect
-     */
-    replaceEffect<TState extends Reactiveable>(
-        state: TState,
-        func: AsyncEffectBuilderFunc<TState, "template">,
-        config?: EffectConfig,
-    ): Promise<this>
 
     /**
      * Creates a new layout-transparent element bound to a reactive effect. When the effect is executed, DOM contents
@@ -429,12 +376,6 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
      */
     replaceEffect<TState extends Reactiveable>(
         state: TState,
-        func: SyncEffectBuilderFunc<TState, "template">,
-        config?: EffectConfig,
-    ): this
-
-    replaceEffect<TState extends Reactiveable>(
-        state: TState,
         func: EffectBuilderFunc<TState, "template">,
         config?: EffectConfig,
     ): Promise<this> | this {
@@ -442,24 +383,24 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
         const container = element.appendChild(this.document.createElement("div"))
         container.style.display = "contents" // makes it so this wrapper div doesn't affect layout.
 
+        config ??= {}
+        if (config.abortSignal) {
+            config.abortSignal = AbortSignal.any([config.abortSignal, this._abortController.signal])
+        } else {
+            config.abortSignal = this._abortController.signal
+        }
+
         // Create a separate template builder to pass to the state function. This is desirable because it more strongly
         // conveys that only the _content_ of the builder is reactive; the properties are not. This API nudges users
         // to make sure they're applying properties in the correct location (the element _containing_ the reactive
         // container, not the reactive container itself)
         const innerBuilder = new HtmlBuilder("template", this.document)
 
-        const outerPromise = innerBuilder.effect(state, (state, innerBuilder) => {
+        effect(state, (state) => {
             innerBuilder.element.content.replaceChildren()
-            const innerPromise = func(state, innerBuilder)
-            if (innerPromise instanceof Promise) {
-                return innerPromise.then(() => container.replaceChildren(innerBuilder.element.content))
-            }
+            const _ = func(state, innerBuilder)
             container.replaceChildren(innerBuilder.element.content)
-        }, config) as Promise<unknown> | unknown
-
-        if (outerPromise instanceof Promise) {
-            return outerPromise.then(() => this)
-        }
+        }, config)
 
         return this
     }
