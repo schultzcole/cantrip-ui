@@ -97,21 +97,14 @@ button {
     font-weight: bold;
     cursor: pointer;
 
-    &:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
+    &:hover {
+        border-color: var(--accent-color);
+        background-color: var(--accent-color-lighter);
     }
 
-    &:not(:disabled) {
-        &:hover {
-            border-color: var(--accent-color);
-            background-color: var(--accent-color-lighter);
-        }
-
-        &:active {
-            border-color: var(--accent-color);
-            background-color: var(--accent-color-darker);
-        }
+    &:active {
+        border-color: var(--accent-color);
+        background-color: var(--accent-color-darker);
     }
 }
 
@@ -120,7 +113,7 @@ label[for] {
 }
 
 input {
-    &[type="text"], &[type="number"], &[type="date"] {
+    &[type="text"], &[type="search"], &[type="email"], &[type="number"], &[type="date"] {
         font-family:
             var(--body-font), sans-serif;
         border: 2px rgba(0, 0, 0, 0.2) solid;
@@ -134,6 +127,17 @@ input {
     }
 }
 
+[aria-disabled] input,
+[aria-disabled] button,
+input[aria-disabled],
+button[aria-disabled],
+input:disabled,
+button:disabled {
+    pointer-events: none;
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
 select {
     border: 2px rgba(0, 0, 0, 0.2) solid;
     border-radius: var(--radius);
@@ -141,7 +145,7 @@ select {
     background-color: rgba(255 255 255 / 40%);
 }
 
-label + input {
+label + input, label > input {
     margin-left: var(--gap);
 }
 
@@ -162,5 +166,52 @@ label + input {
 
     input[type=range] {
         margin: 0;
+    }
+}
+
+.address-book-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--gap);
+
+    .user-form-grid {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: var(--gap);
+
+        .user-form-grid-row {
+            display: grid;
+            grid-template-columns: subgrid;
+            grid-column: span 2;
+            align-items: center;
+        }
+    }
+
+    .user-list {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+
+        border: 2px rgba(0, 0, 0, 0.2) solid;
+        border-radius: var(--radius);
+
+        button {
+            text-align: start;
+            font-weight: normal;
+            color: black;
+            background: none;
+            border: none;
+            border-radius: 0;
+            padding: 3px;
+
+            &:hover {
+                background-color: #CCCCCC;
+            }
+
+            &.selected {
+                background-color: #888888;
+                color: white;
+            }
+        }
     }
 }
