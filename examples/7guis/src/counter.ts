@@ -10,14 +10,13 @@ export function counter(root: HtmlBuilder, initialValue: number) {
 
         counter.tag("button")
             .text("−")
-            .on("mousedown", (_) => state.count--)
+            .on("mousedown", () => state.count--)
 
-        counter.tag("span", (countSpan) => {
-            countSpan.effect(state, ({ count }) => countSpan.replaceHtml(`Count: <strong>${count}</strong>`))
-        })
+        counter.tag("span")
+            .effect(state, ({ count }, label) => label.replaceHtml(`Count: <strong>${count}</strong>`))
 
         counter.tag("button")
             .text("+")
-            .on("mousedown", (_) => state.count++)
+            .on("mousedown", () => state.count++)
     })
 }
