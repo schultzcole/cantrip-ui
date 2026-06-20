@@ -35,7 +35,7 @@ export function addressBook(root: HtmlBuilder): void {
         if (state.selectedUser == undefined) {
             state.inProgressUser = {}
         } else {
-            state.inProgressUser = state.users[state.selectedUser]
+            state.inProgressUser = { ...state.users[state.selectedUser] }
         }
     })
 
@@ -91,7 +91,6 @@ export function addressBook(root: HtmlBuilder): void {
             })
             .component(crudButton, "Update", true, state, async () => {
                 await updateUser({ ...state.inProgressUser }, state.users, state.selectedUser!)
-                state.inProgressUser = state.users[state.selectedUser!]
             })
             .component(crudButton, "Delete", true, state, async () => {
                 await deleteUser(state.users, state.selectedUser!)
