@@ -142,7 +142,10 @@ function crudButton(
         button
             .text(label)
             .on("click", async () => {
-                if (requiresSelectedUser && state.selectedUser == undefined) throw new Error("No user selected")
+                if (requiresSelectedUser && state.selectedUser == undefined) {
+                    alert("No user selected!")
+                    return
+                }
                 state.loading = true
                 try {
                     await onClick()
