@@ -34,10 +34,9 @@ export function addressBook(root: HtmlBuilder): void {
     })
 
     repository.getList()
-        .then(
-            (list) => state.userList = list,
-            (err) => alert(`Could not load users: ${(err as Error).message}`)
-        ).finally(() => state.loading = false)
+        .then((list) => state.userList = list)
+        .catch((err) => alert(`Could not load users: ${(err as Error).message}`))
+        .finally(() => state.loading = false)
 
     root.effect(state, async (state) => {
         if (state.selectedUser == undefined) {
