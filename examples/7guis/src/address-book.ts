@@ -15,27 +15,40 @@ type AddressBookState = {
     loading: boolean
     filter?: string
     selectedUser?: number
-    users: User[]
+    userList: string[]
     inProgressUser: UnvalidatedUser
 }
 
 export function addressBook(root: HtmlBuilder): void {
+    const repository = new UserRepository([
+        { firstName: "John", lastName: "Doe", email: "john.doe@test.test" },
+        { firstName: "Scooby", lastName: "Doo", email: "ruh.roh@test.test" },
+    ])
+
     const state: AddressBookState = reactive({
-        loading: false,
+        loading: true,
         filter: undefined,
         selectedUser: undefined,
-        users: [
-            { firstName: "John", lastName: "Doe", email: "johndoe@email.com" },
-            { firstName: "Scooby", lastName: "Doo", email: "ruh.roh@email.com" },
-        ],
+        userList: [],
         inProgressUser: {},
     })
 
-    root.effect(state, (state) => {
+    repository.getList()
+        .then(
+            (list) => state.userList = list,
+            (err) => alert(`Could not load users: ${(err as Error).message}`)
+        ).finally(() => state.loading = false)
+
+    root.effect(state, async (state) => {
         if (state.selectedUser == undefined) {
             state.inProgressUser = {}
         } else {
-            state.inProgressUser = { ...state.users[state.selectedUser] }
+            state.loading = true
+            try {
+                state.inProgressUser = await repository.get(state.selectedUser)
+            } finally {
+                state.loading = false
+            }
         }
     })
 
@@ -60,10 +73,9 @@ export function addressBook(root: HtmlBuilder): void {
             div.tag("div", (div) => {
                 div.attrs({ className: "user-list" })
 
-                div.replaceEffect(state, ({ users }, template) => {
-                    for (let i = 0; i < users.length; i++) {
-                        const user = users[i]
-                        const fullName = `${user.lastName}, ${user.firstName}`
+                div.replaceEffect(state, ({ userList }, template) => {
+                    for (let i = 0; i < userList.length; i++) {
+                        const fullName = userList[i]
                         if (state.filter?.length && !fullName.startsWith(state.filter)) continue
                         template.tag("button")
                             .attrs({ type: "button" })
@@ -86,14 +98,14 @@ export function addressBook(root: HtmlBuilder): void {
         div.tag("div")
             .attrs({ className: "flex flex-gap" })
             .component(crudButton, "Create", false, state, async () => {
-                await createUser({ ...state.inProgressUser }, state.users)
+                state.userList = await repository.create(state.inProgressUser)
                 state.selectedUser = undefined
             })
             .component(crudButton, "Update", true, state, async () => {
-                await updateUser({ ...state.inProgressUser }, state.users, state.selectedUser!)
+                state.userList = await repository.update(state.inProgressUser, state.selectedUser!)
             })
             .component(crudButton, "Delete", true, state, async () => {
-                await deleteUser(state.users, state.selectedUser!)
+                state.userList = await repository.delete(state.selectedUser!)
                 state.selectedUser = undefined
             })
     })
@@ -150,44 +162,57 @@ function crudButton(
 
 // CRUD
 
-function validateUser(unvalidatedUser: UnvalidatedUser): User {
-    const { firstName, lastName, email } = unvalidatedUser
-    if (!firstName?.length) {
-        throw new Error("Empty first name")
+class UserRepository {
+    constructor(readonly users: User[]) { }
+
+    async get(index: number): Promise<User> {
+        await delay(500)
+        return { ...this.users[index] }
     }
-    if (!lastName?.length) {
-        throw new Error("Empty last name")
+
+    async getList(): Promise<string[]> {
+        await delay(200)
+        return this.users.map((u) => `${u.lastName}, ${u.firstName}`)
     }
-    if (!validEmail(email)) {
-        throw new Error("Invalid email")
+
+    async create(unvalidatedUser: UnvalidatedUser): Promise<string[]> {
+        const user = this.validateUser(unvalidatedUser)
+        await delay(200)
+        this.users.push(user)
+        return this.getList()
     }
-    return { firstName, lastName, email }
-}
 
-function validEmail(email: string | undefined): email is Email {
-    if (!email?.length) return false
-    return /.@./.test(email)
-}
+    async update(unvalidatedUser: UnvalidatedUser, index: number): Promise<string[]> {
+        const user = this.validateUser(unvalidatedUser)
+        await delay(200)
+        this.users[index] = user
+        return this.getList()
+    }
 
-async function createUser(unvalidatedUser: UnvalidatedUser, users: User[]): Promise<void> {
-    console.log("creating user", unvalidatedUser)
-    const user = validateUser(unvalidatedUser)
-    await delay(500)
-    users.push(user)
-    console.log("added user!", users)
-}
+    async delete(index: number): Promise<string[]> {
+        await delay(200)
+        this.users.splice(index, 1)
+        return this.getList()
+    }
 
-async function updateUser(unvalidatedUser: UnvalidatedUser, users: User[], index: number): Promise<void> {
-    const user = validateUser(unvalidatedUser)
-    await delay(500)
-    users[index] = user
-    console.log("updated user!", users)
-}
+    validateUser(unvalidatedUser: UnvalidatedUser): User {
+        const { firstName, lastName, email } = unvalidatedUser
+        if (!firstName?.length) {
+            throw new Error("Empty first name")
+        }
+        if (!lastName?.length) {
+            throw new Error("Empty last name")
+        }
+        if (!this.validEmail(email)) {
+            throw new Error("Invalid email")
+        }
+        return { firstName, lastName, email }
+    }
 
-async function deleteUser(users: User[], index: number): Promise<void> {
-    await delay(500)
-    users.splice(index, 1)
-    console.log("deleted user!", users)
+    validEmail(email: string | undefined): email is Email {
+        if (!email?.length) return false
+        return /.@./.test(email)
+    }
 }
 
 function delay(ms: number): Promise<void> {
