@@ -106,9 +106,7 @@ export default class ReactiveContext<TState extends Reactiveable> {
         if (!currentEffect) {
             // We're not capturing any effects, but maybe our parents are
             for (const [parentContext, parentProp] of this._parentContexts) {
-                if (!parentContext.emptyStack) {
-                    parentContext.notifyPropGet(`${parentProp.toString()}.${prop.toString()}`)
-                }
+                parentContext.notifyPropGet(`${parentProp.toString()}.${prop.toString()}`)
             }
             return
         }
