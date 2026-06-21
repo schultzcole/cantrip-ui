@@ -1,5 +1,6 @@
 import { analyzer, unstableRolldownAdapter } from "vite-bundle-analyzer"
 import { defineConfig, lazyPlugins } from "vite-plus"
+import { resolve } from 'path'
 
 export default defineConfig({
     plugins: lazyPlugins(() => [
@@ -12,4 +13,9 @@ export default defineConfig({
             }),
         ),
     ]),
+    resolve: {
+        alias: {
+            '@cantrip-ui/core': resolve(__dirname, '../../core/mod.ts'),
+        }
+    }
 })
