@@ -1,0 +1,12 @@
+{
+    "name": "@cantrip-ui/examples-7guis",
+    "private": true,
+    "type": "module",
+    "dependencies": {
+        "@cantrip-ui/core": "*"
+    },
+    "devDependencies": {
+        "vite-bundle-analyzer": "^1.3.8",
+        "vite-plus": "latest"
+    }
+}

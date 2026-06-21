@@ -1,19 +1,14 @@
-import { assertEquals } from "@std/assert"
-import { describe, it } from "@std/testing/bdd"
-import { html } from "./html-tagged-template.ts"
+import { describe, expect, it } from "vite-plus/test"
+import { html } from "./html-tagged-template"
 
 describe("html", () => {
     it("produces normal html string", () => {
-        const actual = html`
-            <div></div>
-        `.trim()
-        assertEquals(actual, "<div></div>")
+        const actual = html` <div></div> `.trim()
+        expect(actual).toEqual("<div></div>")
     })
 
     it("produces string with holes", () => {
-        const actual = html`
-            <div>${"ooh"} ${123}</div>
-        `.trim()
-        assertEquals(actual, "<div>ooh 123</div>")
+        const actual = html` <div>${"ooh"} ${123}</div> `.trim()
+        expect(actual).toEqual("<div>ooh 123</div>")
     })
 })

@@ -1,7 +1,6 @@
 :root {
     --body-font: system-ui;
-    font-family:
-        var(--body-font), sans-serif;
+    font-family: var(--body-font), sans-serif;
     color: #1f1f1f;
 
     --accent-color: #dd6026;
@@ -43,7 +42,13 @@ h1 {
     text-align: center;
 }
 
-h1, h2, h3, h4, h5, h6, p {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p {
     margin-top: 0;
 }
 
@@ -113,9 +118,12 @@ label[for] {
 }
 
 input {
-    &[type="text"], &[type="search"], &[type="email"], &[type="number"], &[type="date"] {
-        font-family:
-            var(--body-font), sans-serif;
+    &[type="text"],
+    &[type="search"],
+    &[type="email"],
+    &[type="number"],
+    &[type="date"] {
+        font-family: var(--body-font), sans-serif;
         border: 2px rgba(0, 0, 0, 0.2) solid;
         border-radius: var(--radius);
         padding: 8px;
@@ -145,7 +153,8 @@ select {
     background-color: rgba(255 255 255 / 40%);
 }
 
-label + input, label > input {
+label + input,
+label > input {
     margin-left: var(--gap);
 }
 
@@ -164,7 +173,7 @@ label + input, label > input {
         }
     }
 
-    input[type=range] {
+    input[type="range"] {
         margin: 0;
     }
 }
@@ -205,7 +214,7 @@ label + input, label > input {
             padding: 3px;
 
             &:hover {
-                background-color: #CCCCCC;
+                background-color: #cccccc;
             }
 
             &.selected {

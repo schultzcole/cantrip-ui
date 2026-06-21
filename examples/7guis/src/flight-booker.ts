@@ -1,6 +1,6 @@
-import { HtmlBuilder, reactive } from "../../../core/mod.ts"
-import { selectOptions } from "./shared-components/select-options.ts"
-import { unreachable } from "./utils.ts"
+import { HtmlBuilder, reactive } from "@cantrip-ui/core"
+import { selectOptions } from "./shared-components/select-options"
+import { unreachable } from "./utils"
 
 const MODES = Object.freeze({
     ONE_WAY: "One-way Flight",
@@ -25,13 +25,13 @@ export function flightBooker(root: HtmlBuilder, initialStartDate: Temporal.Plain
         endDate: undefined,
     } as UiState)
 
-    root.effect(state, (state) => {
+    root.effect(state, state => {
         if (state.mode === "ONE_WAY") {
             state.endDate = undefined
         }
     })
 
-    root.tag("form", (form) => {
+    root.tag("form", form => {
         form.attrs({ className: "flex flex-col flex-gap flex-align-center" })
 
         // Mode select
@@ -39,20 +39,20 @@ export function flightBooker(root: HtmlBuilder, initialStartDate: Temporal.Plain
             .attrs({ value: state.mode })
             .style({ alignSelf: "stretch" })
             .component(selectOptions, MODES)
-            .on("change", (evt) => state.mode = evt.currentTarget.value as Mode)
+            .on("change", evt => (state.mode = evt.currentTarget.value as Mode))
 
         // Start date
-        form.tag("div", (div) => {
+        form.tag("div", div => {
             div.tag("label").attrs({ htmlFor: "start-date" }).text("Start Date:")
 
             div.tag("input")
                 .attrs({ id: "start-date", type: "date" })
                 .effect(state, (state, input) => input.attr("value", state.startDate))
-                .on("change", (evt) => state.startDate = evt.currentTarget.value)
+                .on("change", evt => (state.startDate = evt.currentTarget.value))
         })
 
         // Return date
-        form.tag("div", (div) => {
+        form.tag("div", div => {
             div.tag("label").attrs({ htmlFor: "return-date" }).text("Return Date:")
 
             div.tag("input")
@@ -79,7 +79,7 @@ export function flightBooker(root: HtmlBuilder, initialStartDate: Temporal.Plain
                     input.element.setCustomValidity(invalidMessage)
                     input.element.reportValidity()
                 })
-                .on("change", (evt) => state.endDate = evt.currentTarget.value)
+                .on("change", evt => (state.endDate = evt.currentTarget.value))
         })
 
         // Submit button
@@ -87,7 +87,7 @@ export function flightBooker(root: HtmlBuilder, initialStartDate: Temporal.Plain
             .attrs({ type: "button" })
             .text("Book")
             .effect(state, (state, button) => button.attr("disabled", !validate(state)))
-            .on("click", (_) => bookFlight(state))
+            .on("click", _ => bookFlight(state))
     })
 }
 

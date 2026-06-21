@@ -1,4 +1,4 @@
-import { HtmlBuilder } from "../../../../core/mod.ts"
+import { HtmlBuilder } from "@cantrip-ui/core"
 
 export type SelectOpt = { value: string; label: string }
 export type ShallowSelectOpts = SelectOpt[]
@@ -7,17 +7,13 @@ export type GroupedSelectOpts = (SelectOpt | SelectOptGroup)[]
 export type SelectOpts = ShallowSelectOpts | GroupedSelectOpts
 
 export function selectOptions(root: HtmlBuilder<"select" | "optgroup">, options: SelectOpts | SelectOptRecord): void {
-    const optsArray = (Array.isArray(options)) ? options : selectOptsFromRecord(options)
+    const optsArray = Array.isArray(options) ? options : selectOptsFromRecord(options)
 
     for (const opt of optsArray) {
         if ("value" in opt) {
-            root.tag("option")
-                .attr("value", opt.value)
-                .text(opt.label)
+            root.tag("option").attr("value", opt.value).text(opt.label)
         } else {
-            root.tag("optgroup")
-                .attr("label", opt.label)
-                .component(selectOptions, opt.options)
+            root.tag("optgroup").attr("label", opt.label).component(selectOptions, opt.options)
         }
     }
 }

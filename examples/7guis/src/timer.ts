@@ -1,4 +1,4 @@
-import { HtmlBuilder, reactive } from "../../../core/mod.ts"
+import { HtmlBuilder, reactive } from "@cantrip-ui/core"
 
 type TimerState = {
     duration: number
@@ -11,22 +11,20 @@ export function timer(root: HtmlBuilder): void {
         elapsed: 0,
     })
 
-    root.component(eachFrame, (dt) => {
+    root.component(eachFrame, dt => {
         if (state.elapsed + dt < state.duration) {
             state.elapsed = state.elapsed + dt
         }
     })
 
-    root.tag("div", (grid) => {
+    root.tag("div", grid => {
         grid.attrs({ className: "timer-grid" })
 
         // Progress
-        grid.tag("div", (row) => {
+        grid.tag("div", row => {
             row.attrs({ className: "timer-grid-row" })
 
-            row.tag("label")
-                .attrs({ htmlFor: "timer-progress" })
-                .text("Elapsed Time:")
+            row.tag("label").attrs({ htmlFor: "timer-progress" }).text("Elapsed Time:")
 
             row.tag("progress")
                 .attrs({ id: "timer-progress" })
@@ -38,16 +36,14 @@ export function timer(root: HtmlBuilder): void {
         })
 
         // Duration
-        grid.tag("div", (row) => {
+        grid.tag("div", row => {
             row.attrs({ className: "timer-grid-row" })
 
-            row.tag("label")
-                .attrs({ htmlFor: "duration-range" })
-                .text("Duration:")
+            row.tag("label").attrs({ htmlFor: "duration-range" }).text("Duration:")
 
             row.tag("input")
                 .attrs({ id: "duration-range", type: "range", min: 3, max: 30 })
-                .on("input", (evt) => state.duration = evt.currentTarget.valueAsNumber)
+                .on("input", evt => (state.duration = evt.currentTarget.valueAsNumber))
                 .effect(state, (state, field) => field.attr("value", state.duration))
 
             row.tag("span")
@@ -56,13 +52,13 @@ export function timer(root: HtmlBuilder): void {
         })
 
         // Reset
-        grid.tag("div", (row) => {
+        grid.tag("div", row => {
             row.attrs({ className: "timer-grid-row" })
 
             row.tag("button")
                 .style({ alignSelf: "start" })
                 .text("Reset")
-                .on("click", (_) => state.elapsed = 0)
+                .on("click", _ => (state.elapsed = 0))
         })
     })
 }

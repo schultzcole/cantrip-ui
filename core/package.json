@@ -1,0 +1,18 @@
+{
+    "name": "@cantrip-ui/core",
+    "version": "0.1.0",
+    "type": "module",
+    "exports": {
+        ".": {
+            "import": "./dist/mod.mjs",
+            "types": "./dist/mod.d.mts"
+        }
+    },
+    "dependencies": {
+        "type-fest": "^5.7.0"
+    },
+    "devDependencies": {
+        "happy-dom": "^20.10.2",
+        "vite-plus": "latest"
+    }
+}

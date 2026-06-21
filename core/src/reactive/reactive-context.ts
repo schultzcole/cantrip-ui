@@ -1,5 +1,5 @@
-import type { Reactiveable, StateFunc } from "./reactive-types.ts"
-import type { EffectConfig, ReactiveTagged } from "./reactive.ts"
+import type { EffectConfig, ReactiveTagged } from "./reactive"
+import type { Reactiveable, StateFunc } from "./reactive-types"
 
 type EffectId = number & { __tag: EffectId }
 type Effect<TState extends Reactiveable> = {
@@ -14,7 +14,7 @@ type Trigger = {
     sourceEffects: Set<EffectId | null>
 }
 
-type ParentContext = ReactiveContext<unknown & Reactiveable>
+type ParentContext = ReactiveContext<Reactiveable>
 
 export default class ReactiveContext<TState extends Reactiveable> {
     private readonly _parentContexts: Map<ParentContext, PropertyKey> = new Map()
@@ -42,7 +42,8 @@ export default class ReactiveContext<TState extends Reactiveable> {
 
     private get topEffect(): Effect<TState> | undefined {
         if (this.emptyStack) return undefined
-        return this._effectRegistry.get(this._effectStack[this._effectStack.length - 1])
+        // SAFETY: `!` is safe because the stack must not be empty
+        return this._effectRegistry.get(this._effectStack[this._effectStack.length - 1]!)
     }
 
     /**
@@ -60,9 +61,12 @@ export default class ReactiveContext<TState extends Reactiveable> {
             for (const [parentContext, parentProp] of this._parentContexts) {
                 // SAFETY: `as` is safe because by definition, the parent state must be an object that has a property
                 //         called parentProp with the type TState.
-                const typedParentContext = parentContext as ReactiveContext<{ [key: typeof parentProp]: TState }>
+                const typedParentContext = parentContext as ReactiveContext<{
+                    [key: typeof parentProp]: TState
+                }>
                 if (!typedParentContext.emptyStack) {
-                    typedParentContext.capture((parentState) => func(parentState[parentProp]))
+                    // SAFETY: `!` is safe because parentProp is definitely a prop of parentContext
+                    typedParentContext.capture(parentState => func(parentState[parentProp]!))
                     foundParent = true
                 }
             }
@@ -71,7 +75,7 @@ export default class ReactiveContext<TState extends Reactiveable> {
 
         // SAFETY: `as` is safe because EffectId is an illusion anyway
         const effect = { effectId: this._nextEffectId++ as EffectId, func }
-        config?.abortSignal?.addEventListener("abort", (_) => this.abortEffect(effect.effectId))
+        config?.abortSignal?.addEventListener("abort", _ => this.abortEffect(effect.effectId))
 
         this._effectRegistry.set(effect.effectId, effect)
 
@@ -129,7 +133,7 @@ export default class ReactiveContext<TState extends Reactiveable> {
         const sourceEffectId = currentEffect?.effectId ?? null
 
         // Ensure this trigger is in the queue
-        let trigger = this._triggerQueue.find((n) => n.prop === prop)
+        let trigger = this._triggerQueue.find(n => n.prop === prop)
         if (trigger) {
             // if the trigger is already in the queue, add the current effect as a source to the existing trigger...
             trigger.sourceEffects.add(sourceEffectId)
@@ -150,7 +154,8 @@ export default class ReactiveContext<TState extends Reactiveable> {
     private releaseQueuedTriggers(): void {
         const alreadyReleased = new Set<string>()
         while (this._triggerQueue.length) {
-            const trigger = this._triggerQueue[0]
+            // SAFETY: `!` is safe because the while condition enforces at least one item in the array
+            const trigger = this._triggerQueue[0]!
 
             // infinite loop mitigation: only release this trigger if we haven't already released one for the same prop.
             if (!alreadyReleased.has(trigger.prop)) {
@@ -191,7 +196,7 @@ export default class ReactiveContext<TState extends Reactiveable> {
 
                         // directly call the func instead of using `capture` because we don't need to re-register
                         // this effect and we're managing the effect stack here.
-                        effect.func(this.proxiedState)
+                        void effect.func(this.proxiedState)
                     } else if (effect.children?.length) {
                         // this effect is not bound to this property, but it has children, so check them.
                         inner(effect.children)

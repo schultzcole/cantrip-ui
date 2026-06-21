@@ -1,16 +1,40 @@
 <h1 align="center"><em>cantrip</em> ui</h1>
 
 A small framework for creating reactive UIs using _just typescript_, with no special build steps, IDE plugins or
-tooling, and just a _little_ magic :pinching_hand:.
+tooling, and just a _little_ magic :pinching_hand:
 
-# Examples
+## Development
 
-Examples require deno to run: https://docs.deno.com/runtime/#install-deno
+***cantrip* ui** uses [vite+](https://viteplus.dev) for development tooling.
 
-Then:
+Install `vp`:
 
 ```bash
-cd examples/7guis
-deno install
-deno run dev
+# unix
+curl -fsSL https://vite.plus | bash
+
+# win
+irm https://vite.plus/ps1 | iex
+```
+
+Install dependencies:
+
+```bash
+vp install
+```
+
+### Running the examples
+
+Use `vp dev` to run examples:
+
+```bash
+vp dev examples/7guis
+```
+
+### Running the tests
+
+Use `vp test` to run library tests:
+
+```bash
+vp test
 ```

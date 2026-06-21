@@ -1,4 +1,4 @@
-import type HtmlBuilder from "./html-builder.ts"
+import type HtmlBuilder from "./html-builder"
 
 /**
  * Keeps track of node removals in a document, and if any belong to a registered HtmlBuilder, detach that builder.
@@ -8,7 +8,7 @@ export class RemovalObserver {
     private readonly _map: WeakMap<Element, HtmlBuilder> = new WeakMap()
 
     constructor(public readonly document: Document) {
-        this._observer = new MutationObserver((records) => {
+        this._observer = new MutationObserver(records => {
             for (const record of records) {
                 if (!record.removedNodes?.length) continue
                 for (const removedNode of record.removedNodes) {

@@ -1,0 +1,27 @@
+{
+    "name": "cantrip-ui",
+    "private": true,
+    "workspaces": [
+        "core",
+        "examples/7guis"
+    ],
+    "devDependencies": {
+        "typescript": "^6.0.3",
+        "vite-plus": "latest"
+    },
+    "overrides": {
+        "vite": "npm:@voidzero-dev/vite-plus-core@latest"
+    },
+    "devEngines": {
+        "packageManager": {
+            "name": "npm",
+            "version": "11.17.0",
+            "onFail": "download"
+        },
+        "runtime": {
+            "name": "node",
+            "version": "26.3.1",
+            "onFail": "download"
+        }
+    }
+}

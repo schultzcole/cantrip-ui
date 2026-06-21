@@ -1,5 +1,7 @@
-import type { AnyData, Component, ComponentParameters } from "../util/types.ts"
-import { html } from "./html-tagged-template.ts"
+import { effect, type EffectConfig } from "../reactive/reactive"
+import type { Reactiveable } from "../reactive/reactive-types"
+import type { AnyData, Component, ComponentParameters } from "../util/types"
+import { html } from "./html-tagged-template"
 import type {
     CssAttrs,
     DataAttrs,
@@ -9,10 +11,8 @@ import type {
     HtmlEventTypeListener,
     HtmlTag,
     HtmlTagAttrs,
-} from "./html-types.ts"
-import type { Reactiveable } from "../reactive/reactive-types.ts"
-import { effect, type EffectConfig } from "../reactive/reactive.ts"
-import { RemovalObserver } from "./removal-observer.ts"
+} from "./html-types"
+import { RemovalObserver } from "./removal-observer"
 
 const removalObservers = new WeakMap<Document, RemovalObserver>()
 
@@ -31,7 +31,10 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
     private _element: HtmlElement<TTag> | undefined
     private _abortController: AbortController
     protected document: Document
-    constructor(public thisTag: TTag, document?: Document) {
+    constructor(
+        public thisTag: TTag,
+        document?: Document,
+    ) {
         this.document = document ?? globalThis.document
         this._element = this.document.createElement(thisTag, {})
 
@@ -60,10 +63,7 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
      * @param element
      * @param func
      */
-    static build<TElement extends HTMLElement>(
-        element: TElement,
-        func: BuilderFunc<"template">,
-    ): TElement {
+    static build<TElement extends HTMLElement>(element: TElement, func: BuilderFunc<"template">): TElement {
         const builder = new HtmlBuilder("template")
         const _ = func(builder)
 
@@ -110,11 +110,9 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
         const element = this.checkDetached(this._element)
         if (key in element) {
             // Known attribute key
-            // deno-lint-ignore no-explicit-any -- just let the element handle whatever gets passed
             element[key as keyof HtmlElement<TTag>] = value as any
         } else if (value != undefined) {
             // Unknown attribute key
-            // deno-lint-ignore no-explicit-any -- just let the element handle whatever gets passed
             element.setAttribute(key, value as any)
         } else {
             element.removeAttribute(key)
@@ -284,9 +282,8 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
     tag<TChild extends HtmlTag>(childTag: TChild, func?: BuilderFunc<TChild>): HtmlBuilder<TChild> | this {
         const childBuilder = new (this.constructor as typeof HtmlBuilder)(childTag, this.document)
 
-        const child = childBuilder.element instanceof HTMLTemplateElement
-            ? childBuilder.element.content
-            : childBuilder.element
+        const child =
+            childBuilder.element instanceof HTMLTemplateElement ? childBuilder.element.content : childBuilder.element
         this.appendChild(child)
 
         if (func) {
@@ -332,9 +329,13 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
             config.abortSignal = this._abortController.signal
         }
 
-        effect(state, (state) => {
-            const _ = func(state, this)
-        }, config)
+        effect(
+            state,
+            state => {
+                const _ = func(state, this)
+            },
+            config,
+        )
 
         return this
     }
@@ -373,11 +374,15 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
         // container, not the reactive container itself)
         const innerBuilder = new HtmlBuilder("template", this.document)
 
-        effect(state, (state) => {
-            innerBuilder.element.content.replaceChildren()
-            const _ = func(state, innerBuilder)
-            container.replaceChildren(innerBuilder.element.content)
-        }, config)
+        effect(
+            state,
+            state => {
+                innerBuilder.element.content.replaceChildren()
+                const _ = func(state, innerBuilder)
+                container.replaceChildren(innerBuilder.element.content)
+            },
+            config,
+        )
 
         return this
     }
@@ -428,7 +433,6 @@ export class DetachedBuilderError extends Error {
     constructor(message?: string) {
         super(message)
         this.name = new.target.name
-        Error.captureStackTrace?.(this, new.target)
     }
 }
 
