@@ -28,8 +28,9 @@
     },
     "scripts": {
         "clean-pkg": "mkdir -p dist && cp package.json dist/package.json && cd dist && npm pkg delete scripts devDependencies",
-        "pack": "vp pack && vp run clean-pkg && cp LICENSE dist/LICENSE && mkdir -p pack && npm pack ./dist --pack-destination ./pack",
-        "pub": "vp run pack && npm publish ./dist",
+        "prepack": "vp pack && vp run clean-pkg && cp LICENSE dist/LICENSE ",
+        "pack": "mkdir -p pack && npm pack ./dist --pack-destination ./pack",
+        "pub": "vp run prepack && npm publish --access public ./dist",
         "clean": "rm -rf dist && rm -rf pack"
     }
 }
