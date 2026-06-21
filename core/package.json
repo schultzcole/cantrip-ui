@@ -1,6 +1,6 @@
 {
     "name": "@cantrip-ui/core",
-    "version": "0.0.0",
+    "version": "0.0.1",
     "description": "A small framework for creating reactive UIs using just typescript",
     "keywords": ["ui", "reactive", "typescript"],
     "homepage": "https://github.com/schultzcole/cantrip-ui",
