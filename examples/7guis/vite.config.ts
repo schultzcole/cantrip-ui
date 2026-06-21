@@ -15,7 +15,7 @@ export default defineConfig({
     ]),
     resolve: {
         alias: {
-            '@cantrip-ui/core': resolve(__dirname, '../../core/mod.ts'),
+            '@cantrip-ui/core': resolve(__dirname, '../../core/index.ts'),
         }
     }
 })

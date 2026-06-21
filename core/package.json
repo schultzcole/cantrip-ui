@@ -1,11 +1,15 @@
 {
     "name": "@cantrip-ui/core",
     "version": "0.1.0",
+    "description": "A small framework for creating reactive UIs using just typescript",
+    "keywords": ["ui", "reactive", "typescript"],
+    "homepage": "https://github.com/schultzcole/cantrip-ui",
+    "license": "MIT",
     "type": "module",
     "exports": {
         ".": {
-            "import": "./dist/mod.mjs",
-            "types": "./dist/mod.d.mts"
+            "import": "./dist/index.mjs",
+            "types": "./dist/index.d.mts"
         }
     },
     "dependencies": {

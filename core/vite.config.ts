@@ -5,9 +5,9 @@ export default defineConfig({
         environment: "happy-dom",
     },
     pack: {
-        entry: ["mod.ts"],
-        dts: true,
+        entry: ["index.ts"],
         format: ["esm"],
+        dts: true,
         sourcemap: true,
     },
 })
