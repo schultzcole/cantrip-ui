@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest"
-import HtmlBuilder from "./html-builder.js"
+import { beforeEach, describe, expect, it } from "vite-plus/test"
+import HtmlBuilder from "./html-builder"
 
 describe("HtmlBuilder", () => {
     beforeEach(() => {
@@ -10,11 +10,8 @@ describe("HtmlBuilder", () => {
         it("should build correct nested hierarchy", () => {
             const builder = new HtmlBuilder("div")
             builder
-                .tag("h1", (h1) => h1.text("A list!"))
-                .tag("ul", (ul) =>
-                    ul
-                        .tag("li", (li) => li.text("Item One"))
-                        .tag("li", (li) => li.text("Item Two")))
+                .tag("h1", h1 => h1.text("A list!"))
+                .tag("ul", ul => ul.tag("li", li => li.text("Item One")).tag("li", li => li.text("Item Two")))
             builder.mount(document.body)
 
             expect(document.body.innerHTML).toEqual(
@@ -94,9 +91,7 @@ describe("HtmlBuilder", () => {
             builder.style({ backgroundColor: "red", marginLeft: "10px" })
             builder.mount(document.body)
 
-            expect(document.body.innerHTML).toEqual(
-                `<div style="background-color: red; margin-left: 10px;"></div>`,
-            )
+            expect(document.body.innerHTML).toEqual(`<div style="background-color: red; margin-left: 10px;"></div>`)
         })
     })
 
@@ -113,9 +108,7 @@ describe("HtmlBuilder", () => {
     describe("template builder", () => {
         it("should add children of template to parent on mount", () => {
             const builder = new HtmlBuilder("template")
-            builder
-                .tag("div", (div) => div.attr("id", "one"))
-                .tag("div", (div) => div.attr("id", "two"))
+            builder.tag("div", div => div.attr("id", "one")).tag("div", div => div.attr("id", "two"))
             builder.mount(document.body)
 
             expect(document.body.innerHTML).toEqual(`<div id="one"></div><div id="two"></div>`)

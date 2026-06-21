@@ -1,4 +1,4 @@
-import type { AnyData, OmitFunctions, OmitReadonly } from "../util/types.js"
+import type { AnyData, OmitFunctions, OmitReadonly } from "../util/types"
 
 /** An HTML element type string (lowercase) */
 export type HtmlTag = keyof HTMLElementTagNameMap

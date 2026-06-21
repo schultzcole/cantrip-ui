@@ -4,21 +4,15 @@
     "type": "module",
     "exports": {
         ".": {
-            "import": "./dist/mod.js",
-            "types": "./dist/mod.d.ts"
+            "import": "./dist/mod.mjs",
+            "types": "./dist/mod.d.mts"
         }
-    },
-    "scripts": {
-        "build": "tsc -p tsconfig.build.json",
-        "test": "vitest run",
-        "test:watch": "vitest"
     },
     "dependencies": {
         "type-fest": "^5.7.0"
     },
     "devDependencies": {
         "happy-dom": "^20.10.2",
-        "typescript": "^6.0.3",
-        "vitest": "^4.1.0"
+        "vite-plus": "latest"
     }
 }

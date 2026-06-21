@@ -33,12 +33,13 @@ export function addressBook(root: HtmlBuilder): void {
         inProgressUser: {},
     })
 
-    repository.getList()
-        .then((list) => state.userList = list)
-        .catch((err) => alert(`Could not load users: ${(err as Error).message}`))
-        .finally(() => state.loading = false)
+    repository
+        .getList()
+        .then(list => (state.userList = list))
+        .catch(err => alert(`Could not load users: ${(err as Error).message}`))
+        .finally(() => (state.loading = false))
 
-    root.effect(state, async (state) => {
+    root.effect(state, async state => {
         if (state.selectedUser == undefined) {
             state.inProgressUser = {}
         } else {
@@ -51,36 +52,38 @@ export function addressBook(root: HtmlBuilder): void {
         }
     })
 
-    root.tag("div", (div) => {
+    root.tag("div", div => {
         div.attrs({ className: "flex flex-col flex-gap" })
-        div.effect(state, (state) => div.attr("ariaDisabled", state.loading ? true : null))
+        div.effect(state, state => div.attr("ariaDisabled", state.loading ? true : null))
 
         // Name Filter
-        div.tag("div", (div) => {
+        div.tag("div", div => {
             div.tag("label").attrs({ htmlFor: "filter-prefix-field" }).text("Filter: ")
 
             div.tag("input")
                 .attrs({ id: "filter-prefix-field", type: "search" })
-                .on("input", (evt) => state.filter = evt.currentTarget.value)
+                .on("input", evt => (state.filter = evt.currentTarget.value))
         })
 
         // Main Content
-        div.tag("div", (div) => {
+        div.tag("div", div => {
             div.attrs({ className: "address-book-grid" })
 
             // User List
-            div.tag("div", (div) => {
+            div.tag("div", div => {
                 div.attrs({ className: "user-list" })
 
-                div.replaceEffect(state, ({ userList }, template) => {
+                void div.replaceEffect(state, ({ userList }, template) => {
                     for (let i = 0; i < userList.length; i++) {
                         const fullName = userList[i]
+                        if (fullName == undefined) continue
                         if (state.filter?.length && !fullName.startsWith(state.filter)) continue
-                        template.tag("button")
+                        template
+                            .tag("button")
                             .attrs({ type: "button" })
                             .class("selected", state.selectedUser === i)
                             .text(fullName)
-                            .on("click", () => state.selectedUser = i)
+                            .on("click", () => (state.selectedUser = i))
                     }
                 })
             })
@@ -119,14 +122,14 @@ function userField(
     labelText: string,
     type: "text" | "email" = "text",
 ): void {
-    root.tag("div", (div) => {
+    root.tag("div", div => {
         div.attrs({ className: "user-form-grid-row" })
-        div.tag("label", (label) => {
+        div.tag("label", label => {
             label.text(`${labelText}: `)
             div.tag("input")
                 .attrs({ type, name: name })
                 .effect(state, (state, input) => input.attr("value", state.inProgressUser[name] ?? ""))
-                .on("change", (evt) => state.inProgressUser[name] = evt.currentTarget.value)
+                .on("change", evt => (state.inProgressUser[name] = evt.currentTarget.value))
         })
     })
 }
@@ -138,23 +141,21 @@ function crudButton(
     state: AddressBookState,
     onClick: () => Promise<void>,
 ): void {
-    root.tag("button", (button) => {
-        button
-            .text(label)
-            .on("click", async () => {
-                if (requiresSelectedUser && state.selectedUser == undefined) {
-                    alert("No user selected!")
-                    return
-                }
-                state.loading = true
-                try {
-                    await onClick()
-                } catch (ex) {
-                    alert((ex as Error).message)
-                } finally {
-                    state.loading = false
-                }
-            })
+    root.tag("button", button => {
+        button.text(label).on("click", async () => {
+            if (requiresSelectedUser && state.selectedUser == undefined) {
+                alert("No user selected!")
+                return
+            }
+            state.loading = true
+            try {
+                await onClick()
+            } catch (ex) {
+                alert((ex as Error).message)
+            } finally {
+                state.loading = false
+            }
+        })
 
         if (requiresSelectedUser) {
             button.effect(state, (state, button) => button.attr("disabled", state.selectedUser === undefined))
@@ -165,16 +166,18 @@ function crudButton(
 // CRUD
 
 class UserRepository {
-    constructor(readonly users: User[]) { }
+    constructor(readonly users: User[]) {}
 
     async get(index: number): Promise<User> {
         await delay(500)
-        return { ...this.users[index] }
+        const user = this.users[index]
+        if (user == undefined) throw new Error(`No user at index ${index}`)
+        return { ...user }
     }
 
     async getList(): Promise<string[]> {
         await delay(200)
-        return this.users.map((u) => `${u.lastName}, ${u.firstName}`)
+        return this.users.map(u => `${u.lastName}, ${u.firstName}`)
     }
 
     async create(unvalidatedUser: UnvalidatedUser): Promise<string[]> {
@@ -218,5 +221,5 @@ class UserRepository {
 }
 
 function delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms))
+    return new Promise(resolve => setTimeout(resolve, ms))
 }

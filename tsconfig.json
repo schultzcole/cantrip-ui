@@ -1,9 +1,12 @@
 {
     "compilerOptions": {
         "target": "ES2020",
-        "lib": ["ES2020", "ESNext.Collection", "DOM", "DOM.Iterable"],
+        "lib": ["ES2020", "ESNext.Collection", "ESNext.Temporal", "DOM", "DOM.Iterable"],
         "module": "ESNext",
         "strict": true,
+        "noUncheckedIndexedAccess": true,
+        "noFallthroughCasesInSwitch": true,
+        "verbatimModuleSyntax": true,
         "noEmit": true
     },
     "exclude": ["**/dist/**", "**/.vite/**", "**/node_modules/**"]

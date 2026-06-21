@@ -1,5 +1,5 @@
-import type { Reactiveable, ReactiveableArray, ReactiveableRecord, StateFunc } from "./reactive-types.js"
-import ReactiveContext from "./reactive-context.js"
+import ReactiveContext from "./reactive-context"
+import type { Reactiveable, ReactiveableArray, ReactiveableRecord, StateFunc } from "./reactive-types"
 
 const ReactiveTag = Symbol("ReactiveTag")
 
@@ -48,7 +48,7 @@ export function reactiveWithContext<TState extends Reactiveable>(state: TState):
         ) as ReactiveTagged<TState> // SAFETY: `as` is safe here we're re-narrowing to the original type.
     } else if (isReactiveableArray(reactiveState)) {
         proxy = new Proxy(
-            // SAFETY: as is safe here because we've just verified that reactiveState is a ReactiveableArray.
+            // SAFETY: `as` is safe here because we've just verified that reactiveState is a ReactiveableArray.
             reactiveState as unknown as ReactiveTagged<ReactiveableArray>,
             arrayProxyHandler,
         ) as unknown as ReactiveTagged<TState>
@@ -83,11 +83,7 @@ function bindProp<TState extends Reactiveable>(state: TState, prop: keyof TState
     return value
 }
 
-function notifyProp<TState extends Reactiveable>(
-    state: TState,
-    prop: keyof TState,
-    oldValue: TState[keyof TState],
-) {
+function notifyProp<TState extends Reactiveable>(state: TState, prop: keyof TState, oldValue: TState[keyof TState]) {
     const context = getReactiveContext(state)!
     if (isReactiveable(oldValue)) {
         // SAFETY: `as` is safe here because the child context doesn't care what type the parent context is
@@ -165,7 +161,7 @@ export function effect<TState extends Reactiveable>(
     if (context instanceof ReactiveContext) {
         context.capture(func, config)
     } else {
-        const _ = func(state)
+        void func(state)
     }
 }
 

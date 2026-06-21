@@ -9,5 +9,7 @@
  * ```
  */
 export function html(strs: TemplateStringsArray, ...values: unknown[]): string {
-    return values.length ? String.raw(strs, ...values) : strs[0]
+    if (values.length) return String.raw(strs, ...values)
+    // SAFETY: a TemplateStringsArray always has at least one element
+    return strs[0]!
 }

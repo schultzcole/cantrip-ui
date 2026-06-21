@@ -1,12 +1,12 @@
-import { describe, expect, it } from "vitest"
-import { effect, reactive } from "./reactive.js"
+import { describe, expect, it } from "vite-plus/test"
+import { effect, reactive } from "./reactive"
 
 describe("reactive", () => {
     it("calls effect func when state prop changes", () => {
         const state = reactive({ foo: "one" })
 
         const calls: string[] = []
-        effect(state, (state) => {
+        effect(state, state => {
             calls.push(state.foo)
         })
 
@@ -20,7 +20,7 @@ describe("reactive", () => {
         const state = reactive({ foo: "bar" })
 
         let calls = 0
-        effect(state, (state) => {
+        effect(state, state => {
             calls++
             use(state) // effect references state, but not any properties on state
         })
@@ -37,11 +37,11 @@ describe("reactive", () => {
             effectA: 0,
             effectB: 0,
         }
-        effect(state, (state) => {
+        effect(state, state => {
             effectCalls.effectA++
             use(state.foo)
         })
-        effect(state, (state) => {
+        effect(state, state => {
             effectCalls.effectB++
             use(state.foo)
         })
@@ -54,7 +54,7 @@ describe("reactive", () => {
     it("recursive effect is called once", () => {
         const state = reactive({ value: 1 })
 
-        effect(state, (state) => state.value += 1)
+        effect(state, state => (state.value += 1))
 
         expect(state.value).toEqual(2)
     })
@@ -64,8 +64,8 @@ describe("reactive", () => {
             const state = reactive({ foo: "bar" })
 
             let innerCalls = 0
-            effect(state, (state) => {
-                effect(state, (state) => {
+            effect(state, state => {
+                effect(state, state => {
                     innerCalls++
                     use(state.foo)
                 })
@@ -80,9 +80,9 @@ describe("reactive", () => {
             const state = reactive({ foo: "bar" })
 
             let outerCallCount = 0
-            effect(state, (state) => {
+            effect(state, state => {
                 outerCallCount++
-                effect(state, (state) => {
+                effect(state, state => {
                     use(state.foo)
                 })
             })
@@ -99,10 +99,10 @@ describe("reactive", () => {
                 outer: 0,
                 inner: 0,
             }
-            effect(state, (state) => {
+            effect(state, state => {
                 calls.outer++
                 use(state.foo)
-                effect(state, (state) => {
+                effect(state, state => {
                     calls.inner++
                     use(state.foo)
                 })
@@ -120,9 +120,9 @@ describe("reactive", () => {
                 outer: 0,
                 inner: 0,
             }
-            effect(state, (state) => {
+            effect(state, state => {
                 calls.outer++
-                effect(state, (state) => {
+                effect(state, state => {
                     calls.inner++
                     use(state.foo)
                 })
@@ -137,9 +137,9 @@ describe("reactive", () => {
         it("both funcs get called once when both funcs change state when outer func changes state first", () => {
             const state = reactive({ value: 1 })
 
-            effect(state, (state) => {
+            effect(state, state => {
                 state.value += 1
-                effect(state, (state) => {
+                effect(state, state => {
                     state.value += 1
                 })
             })
@@ -150,8 +150,8 @@ describe("reactive", () => {
         it("both funcs get called once when when both funcs change state when outer func changes state last", () => {
             const state = reactive({ value: 1 })
 
-            effect(state, (state) => {
-                effect(state, (state) => {
+            effect(state, state => {
+                effect(state, state => {
                     state.value += 1
                 })
                 state.value += 1
@@ -170,15 +170,15 @@ describe("reactive", () => {
         }
         const computeFahrenheit = (state: Temps, calls: string[]) => {
             calls.push("computeFahrenheit")
-            state.fahrenheit = (state.celsius * (9 / 5)) + 32
+            state.fahrenheit = state.celsius * (9 / 5) + 32
         }
         it("do not create an infinite loop if they are not compounding and first effect is triggered", () => {
             const state: Temps = reactive({ celsius: 0, fahrenheit: 32 })
             const calls: string[] = []
 
             // non-"compounding" effects. When either celsius or fahrenheit change, state settles into a steady state
-            effect(state, (state) => computeCelsius(state, calls))
-            effect(state, (state) => computeFahrenheit(state, calls))
+            effect(state, state => computeCelsius(state, calls))
+            effect(state, state => computeFahrenheit(state, calls))
 
             state.celsius = -40
 
@@ -190,8 +190,8 @@ describe("reactive", () => {
             const calls: string[] = []
 
             // non-"compounding" effects. When either celsius or fahrenheit change, state settles into a steady state
-            effect(state, (state) => computeCelsius(state, calls))
-            effect(state, (state) => computeFahrenheit(state, calls))
+            effect(state, state => computeCelsius(state, calls))
+            effect(state, state => computeFahrenheit(state, calls))
 
             state.fahrenheit = -40
 
@@ -203,8 +203,8 @@ describe("reactive", () => {
             const state: Values = reactive({ value1: 0, value2: 0 })
 
             // "compounding" effects. When either value1 or value2 change, the state continually updates forever
-            effect(state, (state: Values) => state.value1 = state.value2 + 1)
-            effect(state, (state: Values) => state.value2 = state.value1 + 1)
+            effect(state, (state: Values) => (state.value1 = state.value2 + 1))
+            effect(state, (state: Values) => (state.value2 = state.value1 + 1))
 
             expect(state).toEqual({ value1: 3, value2: 4 })
         })
@@ -215,10 +215,10 @@ describe("reactive", () => {
         it("triggering outer effect does not double trigger inner effect", () => {
             const state: State = reactive({ value1: 0, value2: 0, value3: 0 })
 
-            effect(state, (state) => {
+            effect(state, state => {
                 state.value1++
                 use(state.value2)
-                effect(state, (state) => {
+                effect(state, state => {
                     state.value1++
                     use(state.value3)
                 })
@@ -233,9 +233,9 @@ describe("reactive", () => {
         it("triggering inner effect does not double trigger outer effect", () => {
             const state: State = reactive({ value1: 1, value2: 1, value3: 1 })
 
-            effect(state, (state) => {
+            effect(state, state => {
                 state.value1 += state.value2
-                effect(state, (state) => {
+                effect(state, state => {
                     state.value1 += state.value3
                 })
             })
@@ -253,7 +253,7 @@ describe("reactive", () => {
             const state: State = reactive({ foo: { bar: "baz" } })
 
             const calls: string[] = []
-            effect(state, (state) => {
+            effect(state, state => {
                 calls.push(state.foo.bar)
             })
 
@@ -266,7 +266,7 @@ describe("reactive", () => {
             const state: State = reactive({ foo: { bar: "baz" } })
 
             const calls: string[] = []
-            effect(state, (state) => {
+            effect(state, state => {
                 effect(state.foo, () => {
                     calls.push(state.foo.bar)
                 })
@@ -281,7 +281,7 @@ describe("reactive", () => {
             const state: State = reactive({ foo: { bar: "baz" } })
 
             const calls: string[] = []
-            effect(state, (state) => {
+            effect(state, state => {
                 use(state.foo.bar)
                 effect(state.foo, () => {
                     calls.push(state.foo.bar)
