@@ -5,6 +5,10 @@
     "keywords": ["ui", "reactive", "typescript"],
     "homepage": "https://github.com/schultzcole/cantrip-ui",
     "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git@github.com:schultzcole/cantrip-ui.git"
+    },  
     "type": "module",
     "exports": {
         ".": {
