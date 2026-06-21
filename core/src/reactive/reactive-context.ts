@@ -1,5 +1,5 @@
-import type { Reactiveable, StateFunc } from "./reactive-types.ts"
-import type { EffectConfig, ReactiveTagged } from "./reactive.ts"
+import type { Reactiveable, StateFunc } from "./reactive-types.js"
+import type { EffectConfig, ReactiveTagged } from "./reactive.js"
 
 type EffectId = number & { __tag: EffectId }
 type Effect<TState extends Reactiveable> = {

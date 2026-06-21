@@ -1,0 +1,8 @@
+{
+    "name": "cantrip-ui",
+    "private": true,
+    "workspaces": [
+        "core",
+        "examples/7guis"
+    ]
+}

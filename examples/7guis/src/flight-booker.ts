@@ -1,6 +1,6 @@
-import { HtmlBuilder, reactive } from "../../../core/mod.ts"
-import { selectOptions } from "./shared-components/select-options.ts"
-import { unreachable } from "./utils.ts"
+import { HtmlBuilder, reactive } from "@cantrip-ui/core"
+import { selectOptions } from "./shared-components/select-options"
+import { unreachable } from "./utils"
 
 const MODES = Object.freeze({
     ONE_WAY: "One-way Flight",

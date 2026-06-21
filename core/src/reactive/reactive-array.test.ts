@@ -1,6 +1,5 @@
-import { assertEquals } from "@std/assert"
-import { it } from "@std/testing/bdd"
-import { effect, reactive } from "./reactive.ts"
+import { expect, it } from "vitest"
+import { effect, reactive } from "./reactive.js"
 
 it("setting to index triggers effect bound to that index", () => {
     const state = reactive([1, 2, 3])
@@ -12,7 +11,7 @@ it("setting to index triggers effect bound to that index", () => {
 
     state[0] = 42
 
-    assertEquals(calls, [1, 42])
+    expect(calls).toEqual([1, 42])
 })
 
 it("setting to index does not trigger effect bound to different index", () => {
@@ -25,7 +24,7 @@ it("setting to index does not trigger effect bound to different index", () => {
 
     state[1] = 42
 
-    assertEquals(calls, [1])
+    expect(calls).toEqual([1])
 })
 
 it("setting to index triggers effect bound to iteration", () => {
@@ -40,7 +39,7 @@ it("setting to index triggers effect bound to iteration", () => {
 
     state[1] = 42
 
-    assertEquals(calls, [1, 2, 3, 1, 42, 3])
+    expect(calls).toEqual([1, 2, 3, 1, 42, 3])
 })
 
 it("pushing does not trigger effect bound to index", () => {
@@ -53,7 +52,7 @@ it("pushing does not trigger effect bound to index", () => {
 
     state.push(42)
 
-    assertEquals(calls, [1])
+    expect(calls).toEqual([1])
 })
 
 it("pushing triggers effect bound to iteration", () => {
@@ -68,5 +67,5 @@ it("pushing triggers effect bound to iteration", () => {
 
     state.push(42)
 
-    assertEquals(calls, [1, 2, 3, 1, 2, 3, 42])
+    expect(calls).toEqual([1, 2, 3, 1, 2, 3, 42])
 })

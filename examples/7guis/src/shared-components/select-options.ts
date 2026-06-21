@@ -1,4 +1,4 @@
-import { HtmlBuilder } from "../../../../core/mod.ts"
+import { HtmlBuilder } from "@cantrip-ui/core"
 
 export type SelectOpt = { value: string; label: string }
 export type ShallowSelectOpts = SelectOpt[]

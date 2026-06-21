@@ -1,5 +1,5 @@
-import type { AnyData, Component, ComponentParameters } from "../util/types.ts"
-import { html } from "./html-tagged-template.ts"
+import type { AnyData, Component, ComponentParameters } from "../util/types.js"
+import { html } from "./html-tagged-template.js"
 import type {
     CssAttrs,
     DataAttrs,
@@ -9,10 +9,10 @@ import type {
     HtmlEventTypeListener,
     HtmlTag,
     HtmlTagAttrs,
-} from "./html-types.ts"
-import type { Reactiveable } from "../reactive/reactive-types.ts"
-import { effect, type EffectConfig } from "../reactive/reactive.ts"
-import { RemovalObserver } from "./removal-observer.ts"
+} from "./html-types.js"
+import type { Reactiveable } from "../reactive/reactive-types.js"
+import { effect, type EffectConfig } from "../reactive/reactive.js"
+import { RemovalObserver } from "./removal-observer.js"
 
 const removalObservers = new WeakMap<Document, RemovalObserver>()
 
@@ -110,11 +110,9 @@ export default class HtmlBuilder<TTag extends HtmlTag = HtmlTag> {
         const element = this.checkDetached(this._element)
         if (key in element) {
             // Known attribute key
-            // deno-lint-ignore no-explicit-any -- just let the element handle whatever gets passed
             element[key as keyof HtmlElement<TTag>] = value as any
         } else if (value != undefined) {
             // Unknown attribute key
-            // deno-lint-ignore no-explicit-any -- just let the element handle whatever gets passed
             element.setAttribute(key, value as any)
         } else {
             element.removeAttribute(key)
@@ -428,7 +426,6 @@ export class DetachedBuilderError extends Error {
     constructor(message?: string) {
         super(message)
         this.name = new.target.name
-        Error.captureStackTrace?.(this, new.target)
     }
 }
 

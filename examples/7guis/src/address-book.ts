@@ -1,4 +1,4 @@
-import { HtmlBuilder, reactive } from "../../../core/mod.ts"
+import { HtmlBuilder, reactive } from "@cantrip-ui/core"
 
 type Email = `${string}@${string}`
 type User = {

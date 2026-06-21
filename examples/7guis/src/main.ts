@@ -1,10 +1,10 @@
-import { HtmlBuilder } from "../../../core/mod.ts"
+import { HtmlBuilder } from "@cantrip-ui/core"
 import "./style.css"
-import { counter } from "./counter.ts"
-import { temperatureConverter } from "./temperature-converter.ts"
-import { flightBooker } from "./flight-booker.ts"
-import { timer } from "./timer.ts"
-import { addressBook } from "./address-book.ts"
+import { counter } from "./counter"
+import { temperatureConverter } from "./temperature-converter"
+import { flightBooker } from "./flight-booker"
+import { timer } from "./timer"
+import { addressBook } from "./address-book"
 
 HtmlBuilder.build(document.getElementById("app")!, (root) => {
     root.tag("h1", (heading) => heading.html(`<em>cantrip</em> ui - 7GUIs`))

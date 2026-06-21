@@ -1,4 +1,4 @@
-import { HtmlBuilder, reactive } from "../../../core/mod.ts"
+import { HtmlBuilder, reactive } from "@cantrip-ui/core"
 
 type TimerState = {
     duration: number

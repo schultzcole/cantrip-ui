@@ -1,15 +1,9 @@
-import { GlobalRegistrator } from "@happy-dom/global-registrator"
-import HtmlBuilder from "./html-builder.ts"
-import { assertEquals } from "@std/assert"
-import { afterEach, beforeEach, describe, it } from "@std/testing/bdd"
+import { beforeEach, describe, expect, it } from "vitest"
+import HtmlBuilder from "./html-builder.js"
 
 describe("HtmlBuilder", () => {
     beforeEach(() => {
-        GlobalRegistrator.register()
-    })
-
-    afterEach(async () => {
-        await GlobalRegistrator.unregister()
+        document.body.innerHTML = ""
     })
 
     describe("#tag", () => {
@@ -23,8 +17,7 @@ describe("HtmlBuilder", () => {
                         .tag("li", (li) => li.text("Item Two")))
             builder.mount(document.body)
 
-            assertEquals(
-                document.body.innerHTML,
+            expect(document.body.innerHTML).toEqual(
                 "<div><h1>A list!</h1><ul><li>Item One</li><li>Item Two</li></ul></div>",
             )
         })
@@ -36,7 +29,7 @@ describe("HtmlBuilder", () => {
             builder.attrs({ className: "a-class", hidden: true })
             builder.mount(document.body)
 
-            assertEquals(document.body.innerHTML, '<div class="a-class" hidden=""></div>')
+            expect(document.body.innerHTML).toEqual('<div class="a-class" hidden=""></div>')
         })
     })
 
@@ -46,7 +39,7 @@ describe("HtmlBuilder", () => {
             builder.attr("hidden", true)
             builder.mount(document.body)
 
-            assertEquals(document.body.innerHTML, '<div hidden=""></div>')
+            expect(document.body.innerHTML).toEqual('<div hidden=""></div>')
         })
 
         it("should add single unknown attr", () => {
@@ -54,7 +47,7 @@ describe("HtmlBuilder", () => {
             builder.attr("unknownProperty", "a value")
             builder.mount(document.body)
 
-            assertEquals(document.body.innerHTML, '<div unknownproperty="a value"></div>')
+            expect(document.body.innerHTML).toEqual('<div unknownproperty="a value"></div>')
         })
     })
 
@@ -64,7 +57,7 @@ describe("HtmlBuilder", () => {
             builder.data({ foo: "bar", bazQux: true })
             builder.mount(document.body)
 
-            assertEquals(document.body.innerHTML, `<div data-foo="bar" data-baz-qux="true"></div>`)
+            expect(document.body.innerHTML).toEqual(`<div data-foo="bar" data-baz-qux="true"></div>`)
         })
 
         it("should add single data attribute", () => {
@@ -72,7 +65,7 @@ describe("HtmlBuilder", () => {
             builder.data("foo", "bar")
             builder.mount(document.body)
 
-            assertEquals(document.body.innerHTML, `<div data-foo="bar"></div>`)
+            expect(document.body.innerHTML).toEqual(`<div data-foo="bar"></div>`)
         })
     })
 
@@ -82,7 +75,7 @@ describe("HtmlBuilder", () => {
             builder.class("a-class")
             builder.mount(document.body)
 
-            assertEquals(document.body.innerHTML, '<div class="a-class"></div>')
+            expect(document.body.innerHTML).toEqual('<div class="a-class"></div>')
         })
 
         it("should add class to element when `force` is true", () => {
@@ -91,7 +84,7 @@ describe("HtmlBuilder", () => {
             builder.class("no", false)
             builder.mount(document.body)
 
-            assertEquals(document.body.innerHTML, '<div class="yes"></div>')
+            expect(document.body.innerHTML).toEqual('<div class="yes"></div>')
         })
     })
 
@@ -101,8 +94,7 @@ describe("HtmlBuilder", () => {
             builder.style({ backgroundColor: "red", marginLeft: "10px" })
             builder.mount(document.body)
 
-            assertEquals(
-                document.body.innerHTML,
+            expect(document.body.innerHTML).toEqual(
                 `<div style="background-color: red; margin-left: 10px;"></div>`,
             )
         })
@@ -114,7 +106,7 @@ describe("HtmlBuilder", () => {
             builder.css({ "--my-css-var": "10px" })
             builder.mount(document.body)
 
-            assertEquals(document.body.innerHTML, `<div style="--my-css-var: 10px;"></div>`)
+            expect(document.body.innerHTML).toEqual(`<div style="--my-css-var: 10px;"></div>`)
         })
     })
 
@@ -126,7 +118,7 @@ describe("HtmlBuilder", () => {
                 .tag("div", (div) => div.attr("id", "two"))
             builder.mount(document.body)
 
-            assertEquals(document.body.innerHTML, `<div id="one"></div><div id="two"></div>`)
+            expect(document.body.innerHTML).toEqual(`<div id="one"></div><div id="two"></div>`)
         })
     })
 })

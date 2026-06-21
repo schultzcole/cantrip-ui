@@ -1,10 +1,9 @@
 import type { WritableKeysOf } from "type-fest"
-import type HtmlBuilder from "../html/html-builder.ts"
+import type HtmlBuilder from "../html/html-builder.js"
 
 /** Returns all keys of T where T[K] is not a function */
 export type NonFunctionKeysOf<T> = Exclude<
     {
-        // deno-lint-ignore ban-types -- *any* function or class
         [key in keyof T]: T[key] extends Function ? never : key
     }[keyof T],
     undefined
@@ -22,14 +21,11 @@ export type AnyData = string | number | bigint | boolean | undefined | null
 /** Either T or a function that takes no arguments and returns a T */
 export type TOrFunc<T> = T | (() => T)
 
-// deno-lint-ignore no-explicit-any -- component args can be anything
 export type SyncComponent<TRootBuilder extends HtmlBuilder> = (root: TRootBuilder, ...args: any[]) => void
-// deno-lint-ignore no-explicit-any -- component args can be anything
 export type AsyncComponent<TRootBuilder extends HtmlBuilder> = (root: TRootBuilder, ...args: any[]) => Promise<void>
 
 /** A component function */
 export type Component<TRootBuilder extends HtmlBuilder> = SyncComponent<TRootBuilder> | AsyncComponent<TRootBuilder>
 
 /** Extracts the non-HtmlBuilder params of the given component function */
-// deno-lint-ignore no-explicit-any -- don't care about component builder type
 export type ComponentParameters<T extends Component<any>> = Parameters<T> extends [any, ...infer TArgs] ? TArgs : never

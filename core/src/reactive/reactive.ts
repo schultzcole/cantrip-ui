@@ -1,5 +1,5 @@
-import type { Reactiveable, ReactiveableArray, ReactiveableRecord, StateFunc } from "./reactive-types.ts"
-import ReactiveContext from "./reactive-context.ts"
+import type { Reactiveable, ReactiveableArray, ReactiveableRecord, StateFunc } from "./reactive-types.js"
+import ReactiveContext from "./reactive-context.js"
 
 const ReactiveTag = Symbol("ReactiveTag")
 

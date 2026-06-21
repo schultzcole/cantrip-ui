@@ -1,4 +1,4 @@
-import { HtmlBuilder, reactive } from "../../../core/mod.ts"
+import { HtmlBuilder, reactive } from "@cantrip-ui/core"
 
 export function counter(root: HtmlBuilder, initialValue: number) {
     const state = reactive({ count: initialValue })

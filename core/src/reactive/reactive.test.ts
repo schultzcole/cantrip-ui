@@ -1,6 +1,5 @@
-import { assertEquals } from "@std/assert"
-import { describe, it } from "@std/testing/bdd"
-import { effect, reactive } from "./reactive.ts"
+import { describe, expect, it } from "vitest"
+import { effect, reactive } from "./reactive.js"
 
 describe("reactive", () => {
     it("calls effect func when state prop changes", () => {
@@ -14,7 +13,7 @@ describe("reactive", () => {
         state.foo = "two"
         state.foo = "three"
 
-        assertEquals(calls, ["one", "two", "three"])
+        expect(calls).toEqual(["one", "two", "three"])
     })
 
     it("does not call effect func when state changes if effect does not use props", () => {
@@ -28,7 +27,7 @@ describe("reactive", () => {
 
         state.foo = "baz"
 
-        assertEquals(calls, 1)
+        expect(calls).toEqual(1)
     })
 
     it("multiple effects called when state changes", () => {
@@ -49,7 +48,7 @@ describe("reactive", () => {
 
         state.foo = "baz"
 
-        assertEquals(effectCalls, { effectA: 2, effectB: 2 })
+        expect(effectCalls).toEqual({ effectA: 2, effectB: 2 })
     })
 
     it("recursive effect is called once", () => {
@@ -57,7 +56,7 @@ describe("reactive", () => {
 
         effect(state, (state) => state.value += 1)
 
-        assertEquals(state.value, 2)
+        expect(state.value).toEqual(2)
     })
 
     describe("nested effects", () => {
@@ -74,7 +73,7 @@ describe("reactive", () => {
 
             state.foo = "baz"
 
-            assertEquals(innerCalls, 2)
+            expect(innerCalls).toEqual(2)
         })
 
         it("outer func does not get called again if it does not use any changed props", () => {
@@ -90,7 +89,7 @@ describe("reactive", () => {
 
             state.foo = "baz"
 
-            assertEquals(outerCallCount, 1)
+            expect(outerCallCount).toEqual(1)
         })
 
         it("both funcs get called once when both use changed prop when outer func uses prop first", () => {
@@ -111,7 +110,7 @@ describe("reactive", () => {
 
             state.foo = "baz"
 
-            assertEquals(calls, { outer: 2, inner: 2 })
+            expect(calls).toEqual({ outer: 2, inner: 2 })
         })
 
         it("both funcs get called once when both use changed prop when outer func uses prop last", () => {
@@ -132,7 +131,7 @@ describe("reactive", () => {
 
             state.foo = "baz"
 
-            assertEquals(calls, { outer: 2, inner: 2 })
+            expect(calls).toEqual({ outer: 2, inner: 2 })
         })
 
         it("both funcs get called once when both funcs change state when outer func changes state first", () => {
@@ -145,7 +144,7 @@ describe("reactive", () => {
                 })
             })
 
-            assertEquals(state.value, 3)
+            expect(state.value).toEqual(3)
         })
 
         it("both funcs get called once when when both funcs change state when outer func changes state last", () => {
@@ -158,7 +157,7 @@ describe("reactive", () => {
                 state.value += 1
             })
 
-            assertEquals(state.value, 3)
+            expect(state.value).toEqual(3)
         })
     })
 
@@ -183,7 +182,7 @@ describe("reactive", () => {
 
             state.celsius = -40
 
-            assertEquals(calls, ["computeCelsius", "computeFahrenheit", "computeFahrenheit", "computeCelsius"])
+            expect(calls).toEqual(["computeCelsius", "computeFahrenheit", "computeFahrenheit", "computeCelsius"])
         })
 
         it("do not create an infinite loop if they are not compounding and second effect is triggered", () => {
@@ -196,7 +195,7 @@ describe("reactive", () => {
 
             state.fahrenheit = -40
 
-            assertEquals(calls, ["computeCelsius", "computeFahrenheit", "computeCelsius", "computeFahrenheit"])
+            expect(calls).toEqual(["computeCelsius", "computeFahrenheit", "computeCelsius", "computeFahrenheit"])
         })
 
         it("do not create an infinite loop if they are compounding", () => {
@@ -207,7 +206,7 @@ describe("reactive", () => {
             effect(state, (state: Values) => state.value1 = state.value2 + 1)
             effect(state, (state: Values) => state.value2 = state.value1 + 1)
 
-            assertEquals(state, { value1: 3, value2: 4 })
+            expect(state).toEqual({ value1: 3, value2: 4 })
         })
     })
 
@@ -228,7 +227,7 @@ describe("reactive", () => {
             state.value2 = 1
             state.value2 = 2
 
-            assertEquals(state, { value1: 6, value2: 2, value3: 0 })
+            expect(state).toEqual({ value1: 6, value2: 2, value3: 0 })
         })
 
         it("triggering inner effect does not double trigger outer effect", () => {
@@ -244,7 +243,7 @@ describe("reactive", () => {
             state.value3 = 2
             state.value3 = 3
 
-            assertEquals(state, { value1: 8, value2: 1, value3: 3 })
+            expect(state).toEqual({ value1: 8, value2: 1, value3: 3 })
         })
     })
 
@@ -260,7 +259,7 @@ describe("reactive", () => {
 
             state.foo.bar = "qux"
 
-            assertEquals(calls, ["baz", "qux"])
+            expect(calls).toEqual(["baz", "qux"])
         })
 
         it("updating nested property triggers inner effect but not outer effect", () => {
@@ -275,7 +274,7 @@ describe("reactive", () => {
 
             state.foo.bar = "qux"
 
-            assertEquals(calls, ["baz", "qux"])
+            expect(calls).toEqual(["baz", "qux"])
         })
 
         it("nested prop used in nested effects doesn't double trigger inner effect on change", () => {
@@ -291,7 +290,7 @@ describe("reactive", () => {
 
             state.foo.bar = "qux"
 
-            assertEquals(calls, ["baz", "qux"])
+            expect(calls).toEqual(["baz", "qux"])
         })
     })
 })

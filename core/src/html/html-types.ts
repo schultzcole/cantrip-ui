@@ -1,4 +1,4 @@
-import type { AnyData, OmitFunctions, OmitReadonly } from "../util/types.ts"
+import type { AnyData, OmitFunctions, OmitReadonly } from "../util/types.js"
 
 /** An HTML element type string (lowercase) */
 export type HtmlTag = keyof HTMLElementTagNameMap
@@ -22,7 +22,6 @@ export type HtmlEventListener<TEvent extends Event, TElement extends EventTarget
 
 /** Returns a type of the valid HTML attributes for the given element */
 export type HtmlElementAttrs<TElement extends HTMLElement> = {
-    // deno-lint-ignore ban-types -- We _want_ to exclude any Function
     [K in keyof TElement as TElement[K] extends Function ? never : K]?: TElement[K] | AnyData
 }
 

@@ -1,4 +1,4 @@
-import type HtmlBuilder from "./html-builder.ts"
+import type HtmlBuilder from "./html-builder.js"
 
 /**
  * Keeps track of node removals in a document, and if any belong to a registered HtmlBuilder, detach that builder.
