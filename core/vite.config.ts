@@ -7,6 +7,7 @@ export default defineConfig({
     pack: {
         entry: ["index.ts"],
         format: ["esm"],
+        outDir: "./dist/src",
         dts: true,
     },
 })

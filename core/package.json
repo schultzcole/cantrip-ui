@@ -1,20 +1,22 @@
 {
     "name": "@cantrip-ui/core",
-    "version": "0.1.0",
+    "version": "0.0.0",
     "description": "A small framework for creating reactive UIs using just typescript",
     "keywords": ["ui", "reactive", "typescript"],
     "homepage": "https://github.com/schultzcole/cantrip-ui",
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "git@github.com:schultzcole/cantrip-ui.git"
-    },  
+        "url": "git+ssh://git@github.com/schultzcole/cantrip-ui.git"
+    },
     "type": "module",
-    "files": ["./dist"],
+    "files": [
+        "./src"
+    ],
     "exports": {
         ".": {
-            "import": "./dist/index.mjs",
-            "types": "./dist/index.d.mts"
+            "import": "./src/index.mjs",
+            "types": "./src/index.d.mts"
         }
     },
     "dependencies": {
@@ -23,5 +25,11 @@
     "devDependencies": {
         "happy-dom": "^20.10.2",
         "vite-plus": "latest"
+    },
+    "scripts": {
+        "clean-pkg": "mkdir -p dist && cp package.json dist/package.json && cd dist && npm pkg delete scripts devDependencies",
+        "pack": "vp pack && vp run clean-pkg && cp LICENSE dist/LICENSE && mkdir -p pack && npm pack ./dist --pack-destination ./pack",
+        "pub": "vp run pack && npm publish ./dist",
+        "clean": "rm -rf dist && rm -rf pack"
     }
 }
